@@ -1,0 +1,123 @@
+# agb-jellyfin
+
+A [Jellyfin](https://jellyfin.org/) client for **Amazon Vega OS** Fire TV Sticks.
+
+Vega OS is not Android, so the existing Jellyfin Android/Fire OS app cannot run on it,
+and no Jellyfin client exists for the platform. This is one.
+
+## Origin
+
+Forked from [`AmazonAppDev/vega-video-sample`](https://github.com/AmazonAppDev/vega-video-sample)
+(MIT-0) at `ef8e4da` — React Native 0.83, `@amazon-devices/*` Kepler packages, and
+Shaka Player via `@amazon-devices/react-native-w3cmedia`. The upstream `LICENSE` and
+`LICENSE-THIRD-PARTY` are retained.
+
+A pristine copy of the upstream sample is kept beside this repo at
+`../vega-video-sample` for diffing and re-pulling.
+
+## Prerequisites
+
+| Requirement | Notes |
+|---|---|
+| Ubuntu 20.04+ | Verified on 24.04 |
+| **JRE 21+** | Needed by the Shaka build during `npm install` |
+| **Node** | Verified on **v22.14.0**. `package.json` `engines` requires `>=22`; upstream's README claims v18–v20, which is stale for this branch. |
+| Python 3 | Verified on 3.12 |
+| Vega SDK + CLI | `curl -fsSL https://sdk-installer.vega.labcollab.net/get_vvm.sh \| bash && source ~/vega/env` |
+
+Verified against SDK 0.24.9914 / Vega CLI 1.3.4.
+
+## Build and run
+
+```bash
+source ~/vega/env
+npm install                 # also clones + builds Shaka Player (see caveat below)
+npm run build:app           # produces .vpkg for all targets
+
+vega virtual-device start
+vega run-app build/x86_64-release/agbjellyfin_x86_64.vpkg
+```
+
+Artifacts land in `build/{armv7,x86_64,aarch64}-{release,debug}/`.
+**armv7** is the Fire TV Stick; **x86_64** is the Vega Virtual Device on the host.
+
+Useful checks:
+
+```bash
+vega device list            # lists the VVD and any connected sticks
+vega device running-apps    # confirm the app is actually running
+```
+
+### Caveat: `npm install` and flaky networks
+
+`shaka-setup/build.sh` (run from `postinstall`) does a plain full `git clone` of
+`shaka-project/shaka-player`. On a connection that drops long TLS transfers this
+fails repeatedly — `curl 92`, `curl 56`, and `curl 18` mid-transfer disconnects — and
+the script's `ERR` trap rolls back, so retrying `npm install` alone gets nowhere.
+
+Workaround — pre-populate the clone, then let `postinstall` take its
+"repository already exists" path:
+
+```bash
+cd shaka-setup
+# single-branch: --no-single-branch pulls 42k objects and will not complete
+until git -c http.version=HTTP/1.1 clone --depth 1 --branch v4.8.5 \
+      https://github.com/shaka-project/shaka-player.git shaka-player; do
+  rm -rf shaka-player; echo retrying; sleep 5
+done
+cd shaka-player && git branch main HEAD && git branch amz_4.8.5 HEAD && cd ../..
+npm install
+```
+
+`build.sh` aborts unless both a `main` branch and an `amz_4.8.5` branch exist, hence
+the two `git branch` calls. The shallow history does not upset the `git am -3` patch
+application.
+
+## What was stripped from the sample
+
+`manifest.toml` was cut from 409 lines to 178, and the matching headless entry points
+(`service.js`, `task.js`) deleted. Removed:
+
+- **LiveTV** — EPG sync source component, EPG sync + install/update tasks
+- **In-App Purchasing** — services and modules
+- **Content Personalization** — data refresh service, datastore, privileges
+- **Content Launcher** and **Account Login** modules
+
+Retained: the single interactive component, media/audio/network/DRM privileges, and
+**Vega Media Controls** (`IMediaPlaybackServer`) for transport controls during playback.
+
+The corresponding *source* under `src/` (`livetv/`, `iap/`, `personalization/`,
+`headless/`) is still present but no longer reachable from the manifest. It will be
+pruned as the Jellyfin screens replace the sample's.
+
+### Editing the manifest is not enough
+
+`npm run build:app` **rewrites `manifest.toml` in place**, appending a
+`[[needs.module]]` entry for every native module the JS dependency tree autolinks.
+The first build after the strip grew the file from 178 to 319 lines and put back
+modules for exactly the features that were removed:
+
+```
+/com.amazon.kepler.kepler_epg_provider_1@IKeplerEpgProvider_9
+/com.amazon.kepler.kepler_content_personalization_1@IKeplerContentPersonalization_3
+/com.amazon.kepler.kepler_media_account_login_1@IKeplerMediaAccountLogin_1
+/com.amazon.kepler.appstore_iap_lib_2@IAppstoreIapLib_12
+...
+```
+
+Autolinking keys off `package.json` **dependencies**, not off the manifest. To
+actually drop a feature from the package you must remove its `@amazon-devices/*`
+dependency; hand-editing `[needs]` only gets reverted on the next build. Treat the
+autolinked block as generated output.
+
+
+## Status
+
+Phase 0 (toolchain + unmodified sample running on the VVD) is complete; the port to
+this repo is done. Next is the **playback spike** — proving Vega's Shaka integration
+can play what the Jellyfin server emits — which is the project's make-or-break and is
+blocked on the Jellyfin server URL and credentials.
+
+Note that Shaka consumes DASH/HLS only, so direct play of MKV is off the table; the
+realistic target is Jellyfin **DirectStream** (remux to fMP4/HLS) rather than a full
+transcode. See `HANDOFF.md` for the full plan.
