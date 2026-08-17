@@ -113,11 +113,26 @@ autolinked block as generated output.
 
 ## Status
 
-Phase 0 (toolchain + unmodified sample running on the VVD) is complete; the port to
-this repo is done. Next is the **playback spike** — proving Vega's Shaka integration
-can play what the Jellyfin server emits — which is the project's make-or-break and is
-blocked on the Jellyfin server URL and credentials.
+Phase 0 (toolchain + unmodified sample running on the VVD) is complete, the port to
+this repo is done, and the **playback spike** has run on the virtual device. Results
+are in [`docs/playback-spike-results.md`](docs/playback-spike-results.md); the short
+version is that fragmented-MP4 HLS plays, which is what Jellyfin DirectStream emits,
+while AC-3/E-AC-3 audio is unavailable and HEVC fails on the virtual device. The
+HEVC result in particular is expected to change on real armv7 hardware.
 
 Note that Shaka consumes DASH/HLS only, so direct play of MKV is off the table; the
 realistic target is Jellyfin **DirectStream** (remux to fMP4/HLS) rather than a full
 transcode. See `HANDOFF.md` for the full plan.
+
+### Running the spike
+
+The spike is dev scaffolding and is currently the app's launch screen, gated by
+`isPlaybackSpikeEnabled()` in `src/config/AppConfig.ts`. It runs unattended — the
+Vega CLI cannot inject D-pad input — and takes about four minutes:
+
+```bash
+vega run-app build/x86_64-release/agbjellyfin_x86_64.vpkg
+vega device start-log-stream | grep SPIKE_RESULT
+```
+
+Set the flag to `false` to get the sample's own UI back.

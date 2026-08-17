@@ -21,6 +21,10 @@ export enum Screens {
   SEARCH_SCREEN = 'Search',
   SEARCH_RESULTS_SCREEN = 'SearchResultsScreen',
   FEEDBACK_SCREEN = 'FeedBackScreen',
+  /** Development-only playback spike harness; see PlaybackSpikeScreen. */
+  PLAYBACK_SPIKE_SCREEN = 'PlaybackSpike',
+  /** Development-only unattended spike run; see PlaybackSpikeRunnerScreen. */
+  PLAYBACK_SPIKE_RUNNER_SCREEN = 'PlaybackSpikeRunner',
 }
 
 export enum DrawerType {
@@ -36,6 +40,8 @@ export type AppStackParamList = {
   [Screens.SEARCH_SCREEN]: undefined;
   [Screens.SETTINGS_SCREEN]: undefined;
   [Screens.FEEDBACK_SCREEN]: undefined;
+  [Screens.PLAYBACK_SPIKE_SCREEN]: undefined;
+  [Screens.PLAYBACK_SPIKE_RUNNER_SCREEN]: undefined;
   [Screens.SEARCH_RESULTS_SCREEN]: {
     searchKeyword: string;
   };

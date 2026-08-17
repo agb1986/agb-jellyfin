@@ -40,6 +40,17 @@ const isRunningOnSimulator = () => {
 */
 
 /**
+ * Development-only: launch straight into the playback spike harness instead of
+ * the sample's home screen. The spike answers whether Vega can decode the
+ * container/codec combinations a Jellyfin server emits, which gates the whole
+ * project. Set to false (and delete src/spike + PlaybackSpikeScreen) once the
+ * results are recorded.
+ */
+const isPlaybackSpikeEnabled = () => {
+  return true;
+};
+
+/**
  * Based on the device dimensions, we can enable or disable the control of the D-pad.
  *
  * @returns flag to indicate if D-pad controller is supported.
@@ -55,6 +66,7 @@ export {
   isContentPersonalizationEnabled,
   isInAppPurchaseEnabled,
   isAccountLoginEnabled,
+  isPlaybackSpikeEnabled,
   isDpadControllerSupported,
   isRunningOnAutomotive,
   isRunningOnTVSimulator,
