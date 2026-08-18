@@ -190,12 +190,22 @@ export const resolvePlaybackTarget = (
       playSessionId: response.PlaySessionId ?? undefined,
       videoCodec: 'h264',
       audioCodec: 'aac',
-      // Resume is the server's job for a generated playlist: it starts the
-      // remux at this offset rather than being asked for segments it has not
-      // written yet.
-      startTimeTicks: resumeTicks || undefined,
     });
-    startAppliedServerSide = resumeTicks > 0;
+    // Resume is deliberately not applied here yet. Two approaches have been
+    // tried on device and both fail:
+    //
+    //  - Seeking client-side asks for a segment the server has not written.
+    //    Jellyfin logs "cannot serve ... no transcode is running", restarts
+    //    ffmpeg at the new offset, and the fetches in flight fail meanwhile.
+    //  - Passing startTimeTicks on the playlist URL is worse: Jellyfin copies
+    //    the query into the segment URLs it generates and then rejects its own
+    //    request with `System.ArgumentException: StartTimeTicks is not
+    //    allowed` on /hls1/main/-1.mp4, so playback never gets an init
+    //    segment.
+    //
+    // Playback from the start works, so that is what happens until resume is
+    // solved properly.
+    startAppliedServerSide = false;
     format = 'HLS';
     playMethod =
       source.SupportsDirectStream === true ? 'DirectStream' : 'Transcode';
@@ -223,13 +233,16 @@ export const resolvePlaybackTarget = (
     acodec: toShakaAudioCodec(audioStream?.Codec),
   };
 
+  // No resume for a generated HLS playlist yet — see above.
+  const seekTicks = canDirectPlay ? resumeTicks : 0;
+
   return {
     titleData,
     playMethod,
     playSessionId: response.PlaySessionId ?? undefined,
     mediaSourceId: source.Id ?? undefined,
     transcodeReasons: normaliseReasons(source),
-    startPositionTicks: resumeTicks,
+    startPositionTicks: seekTicks,
     startAppliedServerSide,
     positionOffsetTicks: startAppliedServerSide ? resumeTicks : 0,
   };

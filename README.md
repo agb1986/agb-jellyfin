@@ -250,6 +250,27 @@ is the Phase 2 loop in miniature:
 [jellyfin] play "Big Buck Bunny" method=DirectPlay format=MP4 vcodec=avc1 acodec=mp4a reasons=none
 ```
 
+### Resume is not wired up for HLS yet
+
+Playback starts from the beginning, even when the server has a resume point.
+Two approaches were tried on the device and both fail:
+
+- **Seeking client-side** asks for a segment the server has not written.
+  Jellyfin generates HLS on demand, logs `cannot serve ... no transcode is
+  running`, restarts ffmpeg at the new offset, and the fetches already in
+  flight fail meanwhile. On the device that surfaces as HTTP 400 and CURL
+  error 7 inside the native fetcher, and playback ending the moment it starts.
+- **Passing `startTimeTicks` on the playlist URL** is worse. Jellyfin copies
+  the query string into the segment URLs it generates, then rejects its own
+  request: `System.ArgumentException: StartTimeTicks is not allowed` on
+  `/hls1/main/-1.mp4`. Playback never receives an init segment.
+
+Direct play keeps its client-side seek, since a static file has a whole
+timeline. Resume for the HLS path needs revisiting — the likely answer is to
+send `StartTimeTicks` in the `PlaybackInfo` request and use the
+`TranscodingUrl` the server builds from it, rather than constructing the
+playlist URL here.
+
 ### Playback reporting
 
 `/Sessions/Playing`, `/Progress` and `/Stopped` are what make resume, watched
