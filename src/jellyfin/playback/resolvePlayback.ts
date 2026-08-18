@@ -34,6 +34,23 @@ export interface PlaybackTarget {
   transcodeReasons: string[];
   /** Resume position, if the server has one for this user. */
   startPositionTicks: number;
+  /**
+   * True when the resume point is baked into the stream, so the player must
+   * NOT seek — a server-side HLS playlist built with startTimeTicks begins at
+   * the resume point, and its own timeline starts at zero.
+   *
+   * Seeking into it instead asks for a segment index the server has not
+   * produced: Jellyfin logs "cannot serve ... no transcode is running",
+   * restarts ffmpeg at the new offset, and the fetches in flight fail
+   * meanwhile — which reads as playback ending the moment it starts.
+   */
+  startAppliedServerSide: boolean;
+  /**
+   * Ticks to add to the element's currentTime before reporting it. Non-zero
+   * exactly when the offset is server-side, since the stream's clock restarts
+   * at the resume point.
+   */
+  positionOffsetTicks: number;
 }
 
 /**
@@ -136,9 +153,12 @@ export const resolvePlaybackTarget = (
   const videoStream = streamOfType(source, 'Video');
   const audioStream = streamOfType(source, 'Audio');
 
+  const resumeTicks = item.UserData?.PlaybackPositionTicks ?? 0;
+
   let uri: string;
   let format: TitleData['format'];
   let playMethod: PlayMethod;
+  let startAppliedServerSide = false;
 
   if (canDirectPlay) {
     uri = client.getStreamUrl(
@@ -170,7 +190,12 @@ export const resolvePlaybackTarget = (
       playSessionId: response.PlaySessionId ?? undefined,
       videoCodec: 'h264',
       audioCodec: 'aac',
+      // Resume is the server's job for a generated playlist: it starts the
+      // remux at this offset rather than being asked for segments it has not
+      // written yet.
+      startTimeTicks: resumeTicks || undefined,
     });
+    startAppliedServerSide = resumeTicks > 0;
     format = 'HLS';
     playMethod =
       source.SupportsDirectStream === true ? 'DirectStream' : 'Transcode';
@@ -204,6 +229,8 @@ export const resolvePlaybackTarget = (
     playSessionId: response.PlaySessionId ?? undefined,
     mediaSourceId: source.Id ?? undefined,
     transcodeReasons: normaliseReasons(source),
-    startPositionTicks: item.UserData?.PlaybackPositionTicks ?? 0,
+    startPositionTicks: resumeTicks,
+    startAppliedServerSide,
+    positionOffsetTicks: startAppliedServerSide ? resumeTicks : 0,
   };
 };

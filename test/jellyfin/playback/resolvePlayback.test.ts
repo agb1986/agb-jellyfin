@@ -265,3 +265,52 @@ describe('transcode reasons hidden in the TranscodingUrl', () => {
     ).toEqual([]);
   });
 });
+
+describe('resume against a server-generated HLS playlist', () => {
+  const withResume = { ...item, UserData: { PlaybackPositionTicks: 900_000_000 } };
+
+  it('asks the server to start the stream at the resume point', async () => {
+    // Seeking into it instead asks for a segment the server has not written:
+    // Jellyfin logs "cannot serve ... no transcode is running", restarts
+    // ffmpeg at the new offset, and the fetches in flight fail meanwhile —
+    // which looks exactly like playback ending the moment it starts.
+    const target = resolvePlaybackTarget(
+      makeClient(),
+      withResume,
+      directPlayResponse,
+    );
+
+    expect(target.titleData.uri).toContain('startTimeTicks=900000000');
+    expect(target.startAppliedServerSide).toBe(true);
+  });
+
+  it('reports positions within the title, not within the stream', async () => {
+    // A playlist built with startTimeTicks counts from zero at the resume
+    // point, so the offset has to be added back before reporting.
+    const target = resolvePlaybackTarget(
+      makeClient(),
+      withResume,
+      directPlayResponse,
+    );
+    expect(target.positionOffsetTicks).toBe(900_000_000);
+  });
+
+  it('leaves the seek to the player when direct play is used', async () => {
+    const target = resolvePlaybackTarget(
+      makeClient(),
+      withResume,
+      directPlayResponse,
+      { allowDirectPlay: true },
+    );
+
+    expect(target.startAppliedServerSide).toBe(false);
+    expect(target.positionOffsetTicks).toBe(0);
+    expect(target.startPositionTicks).toBe(900_000_000);
+  });
+
+  it('does not ask for an offset when there is nothing to resume', async () => {
+    const target = resolvePlaybackTarget(makeClient(), item, directPlayResponse);
+    expect(target.titleData.uri).not.toContain('startTimeTicks');
+    expect(target.startAppliedServerSide).toBe(false);
+  });
+});

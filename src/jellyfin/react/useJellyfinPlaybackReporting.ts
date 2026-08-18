@@ -23,8 +23,18 @@ const POLL_INTERVAL_MS = 2000;
 export interface JellyfinPlaybackReportingOptions {
   /** Absent when the player was opened with something other than a Jellyfin item. */
   descriptor?: PlaybackSessionDescriptor;
-  /** Server-side resume point; the player seeks here once, on first play. */
+  /** Resume point to seek to once, on first play. Zero when the stream
+   * already begins there — a server-generated HLS playlist built with
+   * startTimeTicks starts at the resume point and counts from zero, so
+   * seeking into it asks for segments the server has not written. */
   startPositionTicks?: number;
+  /**
+   * Added to the element's currentTime before anything is reported. Non-zero
+   * exactly when the stream's clock restarts at the resume point, so that the
+   * server is told the position within the title rather than within the
+   * stream.
+   */
+  positionOffsetTicks?: number;
   pollIntervalMs?: number;
 }
 
@@ -35,7 +45,12 @@ export const useJellyfinPlaybackReporting = (
   // Optional: the player screen also serves the sample's own content, which
   // is rendered outside the Jellyfin tree and reports nowhere.
   const session = useOptionalJellyfin()?.session ?? null;
-  const { descriptor, startPositionTicks, pollIntervalMs } = options;
+  const {
+    descriptor,
+    startPositionTicks,
+    positionOffsetTicks,
+    pollIntervalMs,
+  } = options;
 
   const reporterRef = useRef<PlaybackReporter | null>(null);
   const seekedRef = useRef(false);
@@ -55,7 +70,9 @@ export const useJellyfinPlaybackReporting = (
         return null;
       }
       return {
-        positionSeconds: video.currentTime ?? 0,
+        positionSeconds:
+          (video.currentTime ?? 0) +
+          (positionOffsetTicks ? ticksToSeconds(positionOffsetTicks) : 0),
         isPaused: video.paused === true,
       };
     };
@@ -101,5 +118,12 @@ export const useJellyfinPlaybackReporting = (
       reporter.stop(state ?? { positionSeconds: 0 });
       reporterRef.current = null;
     };
-  }, [session, descriptor, startPositionTicks, pollIntervalMs, videoRef]);
+  }, [
+    session,
+    descriptor,
+    startPositionTicks,
+    positionOffsetTicks,
+    pollIntervalMs,
+    videoRef,
+  ]);
 };

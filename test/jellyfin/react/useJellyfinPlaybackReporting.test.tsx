@@ -169,3 +169,65 @@ const NoDescriptorHarness = () => {
   useJellyfinPlaybackReporting(makeVideo(), { pollIntervalMs: 5 });
   return <Text>sample content</Text>;
 };
+
+describe('when the stream itself starts at the resume point', () => {
+  it('does not seek, and reports the position within the title', async () => {
+    // The playlist counts from zero at the resume point, so seeking would jump
+    // an hour past it and the raw currentTime would under-report by the same
+    // amount.
+    const video = makeVideo({ currentTime: 12 });
+    const fetchImpl = jest.fn().mockResolvedValue(
+      ({
+        ok: true,
+        status: 200,
+        statusText: 'OK',
+        text: async () => JSON.stringify({ Id: 'user-1' }),
+      }) as Response,
+    );
+
+    const store = new MemoryKeyValueStore();
+    await store.setItem(CREDENTIALS_KEY, JSON.stringify(stored));
+
+    const { unmount } = render(
+      <JellyfinProvider
+        store={store}
+        clientInfo={{ name: 'Jellyfin Vega', version: '0.1.0' }}
+        deviceName="Living Room"
+        fetchImpl={fetchImpl as unknown as typeof fetch}>
+        <OffsetHarness videoRef={video} />
+      </JellyfinProvider>,
+    );
+
+    await waitFor(() =>
+      expect(
+        fetchImpl.mock.calls.filter(([url]: [string]) =>
+          url.includes('/Sessions/Playing'),
+        ).length,
+      ).toBeGreaterThan(0),
+    );
+
+    expect(video.current?.currentTime).toBe(12);
+
+    const startCall = fetchImpl.mock.calls.find(([url]: [string]) =>
+      url.endsWith('/Sessions/Playing'),
+    );
+    // 90s of offset plus 12s played.
+    expect(JSON.parse(startCall![1].body).PositionTicks).toBe(1_020_000_000);
+
+    unmount();
+  });
+});
+
+const OffsetHarness = ({
+  videoRef,
+}: {
+  videoRef: React.MutableRefObject<VideoPlayer | null>;
+}) => {
+  useJellyfinPlaybackReporting(videoRef, {
+    descriptor,
+    startPositionTicks: 0,
+    positionOffsetTicks: 900_000_000,
+    pollIntervalMs: 5,
+  });
+  return <Text>player</Text>;
+};

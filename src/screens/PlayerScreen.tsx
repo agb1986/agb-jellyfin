@@ -120,6 +120,7 @@ const PlayerScreen = ({
         }
       : undefined,
     startPositionTicks: jellyfin?.startPositionTicks,
+    positionOffsetTicks: jellyfin?.positionOffsetTicks,
   });
 
   useTVEventHandler((evt: HWEvent) => {

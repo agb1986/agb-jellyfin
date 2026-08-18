@@ -82,7 +82,12 @@ const JellyfinDetailsScreen = ({
           playSessionId: target.playSessionId,
           mediaSourceId: target.mediaSourceId,
           playMethod: target.playMethod,
-          startPositionTicks: target.startPositionTicks,
+          // Only ask the player to seek when the stream does not already
+          // start at the resume point.
+          startPositionTicks: target.startAppliedServerSide
+            ? 0
+            : target.startPositionTicks,
+          positionOffsetTicks: target.positionOffsetTicks,
         },
       });
     } catch (playError) {
