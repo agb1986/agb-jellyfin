@@ -73,6 +73,28 @@ npm install
 the two `git branch` calls. The shallow history does not upset the `git am -3` patch
 application.
 
+## Configuration
+
+Jellyfin server details are **not** checked in. `react-native-dotenv` is wired
+into `babel.config.js`, so a `.env` at the repo root feeds the virtual `@env`
+module:
+
+```bash
+cp .env.example .env
+# JELLYFIN_SERVER_URL=http://192.168.1.10:8096
+```
+
+Read it through `src/config/JellyfinConfig.ts` (`getDevServerUrl()`), never by
+importing `@env` directly — that keeps the "not set" case in one place. With no
+`.env` present the value inlines as `undefined` and the build still succeeds.
+
+**`.env` is not a secret store.** The plugin substitutes values at build time,
+so they become plain strings inside the JavaScript bundle, inside the `.vpkg`
+that gets sideloaded onto every stick. Anyone holding a `.vpkg` can read them.
+Only non-secrets belong there: the server URL is a development convenience so a
+build can reach a server before the setup screen exists. Credentials come from
+Quick Connect at runtime and are stored per device.
+
 ## What was stripped from the sample
 
 `manifest.toml` was cut from 409 lines to 178, and the matching headless entry points
