@@ -19,6 +19,8 @@
  */
 import type { MediaSourceInfo } from '@jellyfin/sdk/lib/generated-client/models';
 import { JellyfinClient } from '../../src/jellyfin/JellyfinClient';
+import { buildDeviceProfile } from '../../src/jellyfin/deviceProfile';
+import { resolvePlaybackTarget } from '../../src/jellyfin/playback/resolvePlayback';
 import { JellyfinSession } from '../../src/jellyfin/JellyfinSession';
 import { MemoryKeyValueStore } from '../../src/jellyfin/storage/KeyValueStore';
 
@@ -31,9 +33,19 @@ type MediaSourceWithReasons = MediaSourceInfo & {
   TranscodeReasons?: string[] | string | null;
 };
 
-const serverUrl = process.env.JELLYFIN_TEST_SERVER;
-const userName = process.env.JELLYFIN_TEST_USER;
-const password = process.env.JELLYFIN_TEST_PASSWORD;
+/**
+ * Read through an alias, not as `process.env.X`.
+ *
+ * react-native-dotenv rewrites `process.env.SOMETHING` into a literal at
+ * compile time, and Jest caches the transformed module — so a run with the
+ * variable set bakes the value in, and every later run tries to reach a server
+ * that is no longer there. Aliasing the object defeats the rewrite, because
+ * the plugin only matches member expressions on `process.env` itself.
+ */
+const env = process.env;
+const serverUrl = env.JELLYFIN_TEST_SERVER;
+const userName = env.JELLYFIN_TEST_USER;
+const password = env.JELLYFIN_TEST_PASSWORD;
 
 const clientInfo = { name: 'Jellyfin Vega (test)', version: '0.1.0' };
 const describeLive = serverUrl ? describe : describe.skip;
@@ -196,6 +208,81 @@ describeLive('against a live Jellyfin server', () => {
         source?.SupportsDirectStream ||
         source?.SupportsTranscoding,
     ).toBe(true);
+  });
+
+  it('resolves a playable URL the server actually serves', async () => {
+    // The hand-off between the two halves of the app: PlaybackInfo in, a
+    // TitleData the sample's player can open out. Fetching the URL is the
+    // part unit tests cannot do — it proves the query parameters and the
+    // api_key are the ones the server wants.
+    const session = await JellyfinSession.create({
+      store: new MemoryKeyValueStore(),
+      clientInfo,
+      deviceName: 'integration',
+      serverUrl,
+    });
+    session.client.setAccessToken(
+      await signInWithPassword(serverUrl as string),
+    );
+    await session.client.getCurrentUser();
+
+    const views = await session.client.getUserViews();
+    const items = await session.client.getItems({
+      parentId: views.Items?.[0]?.Id,
+      recursive: true,
+      includeItemTypes: ['Movie'],
+      limit: 1,
+    });
+    const item = items.Items?.[0];
+
+    const playback = await session.client.getPlaybackInfo(item?.Id as string);
+    const target = resolvePlaybackTarget(session.client, item ?? {}, playback);
+
+    process.stdout.write(
+      `[integration] resolved ${target.titleData.title}: method=${target.playMethod} ` +
+        `format=${target.titleData.format} vcodec=${target.titleData.vcodec} ` +
+        `acodec=${target.titleData.acodec} reasons=${
+          target.transcodeReasons.join(',') || 'none'
+        }\n`,
+    );
+
+    const response = await fetch(target.titleData.uri);
+    expect(response.status).toBe(200);
+
+    const contentType = response.headers.get('content-type') ?? '';
+    // A direct play answers with the file; an HLS answer is a playlist.
+    expect(contentType).toMatch(/video|mpegurl|octet-stream/i);
+
+    // Now the path that matters for a real library. Claiming no direct-play
+    // container forces the server down the HLS route, which is what every
+    // remux will take, and checks that the TranscodingUrl it hands back is
+    // usable exactly as given.
+    const hlsPlayback = await session.client.getPlaybackInfo(
+      item?.Id as string,
+      {
+        deviceProfile: {
+          ...buildDeviceProfile(),
+          DirectPlayProfiles: [],
+        },
+      },
+    );
+    const hlsTarget = resolvePlaybackTarget(
+      session.client,
+      item ?? {},
+      hlsPlayback,
+    );
+
+    process.stdout.write(
+      `[integration] forced HLS ${hlsTarget.titleData.title}: ` +
+        `method=${hlsTarget.playMethod} format=${hlsTarget.titleData.format} ` +
+        `reasons=${hlsTarget.transcodeReasons.join(',') || 'none'}\n`,
+    );
+
+    expect(hlsTarget.titleData.format).toBe('HLS');
+
+    const playlist = await fetch(hlsTarget.titleData.uri);
+    expect(playlist.status).toBe(200);
+    expect(await playlist.text()).toContain('#EXTM3U');
   });
 
   it('accepts playback progress reports', async () => {

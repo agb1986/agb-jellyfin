@@ -28,6 +28,8 @@ const stored = {
   userName: 'agb',
 };
 
+const navigate = jest.fn();
+
 const renderLibrary = async (fetchImpl: jest.Mock) => {
   const store = new MemoryKeyValueStore();
   await store.setItem(CREDENTIALS_KEY, JSON.stringify(stored));
@@ -38,7 +40,7 @@ const renderLibrary = async (fetchImpl: jest.Mock) => {
       clientInfo={{ name: 'Jellyfin Vega', version: '0.1.0' }}
       deviceName="Living Room"
       fetchImpl={fetchImpl as unknown as typeof fetch}>
-      <LibraryScreen />
+      <LibraryScreen navigation={{ navigate }} />
     </JellyfinProvider>,
   );
 };

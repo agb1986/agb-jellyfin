@@ -219,12 +219,23 @@ export class JellyfinClient {
    * `TranscodingUrl` from PlaybackInfo takes precedence when present — it is
    * already a complete relative URL and encodes the server's chosen settings.
    */
-  getStreamUrl(itemId: string, mediaSourceId: string, playSessionId?: string): string {
+  getStreamUrl(
+    itemId: string,
+    mediaSourceId: string,
+    playSessionId?: string,
+  ): string {
+    // api_key in the query string, not the Authorization header: Shaka and the
+    // static player fetch media through their own networking, which never sees
+    // the headers this client sets. Jellyfin's own TranscodingUrl does the
+    // same. It does mean playback URLs can end up in a proxy or server log,
+    // which is a reason to keep the token per-device and revocable rather than
+    // to reach for a server-wide API key.
     return this.http.buildUrl(`/Videos/${encodeURIComponent(itemId)}/stream`, {
       static: true,
       mediaSourceId,
       playSessionId,
       deviceId: this.deviceInfo.id,
+      api_key: this.http.accessToken || undefined,
     });
   }
 

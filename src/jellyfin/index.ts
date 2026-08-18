@@ -64,3 +64,13 @@ export {
   type KeyValueStore,
   MemoryKeyValueStore,
 } from './storage/KeyValueStore';
+export {
+  toShakaAudioCodec,
+  toShakaVideoCodec,
+} from './playback/codecs';
+export {
+  NoPlayableSourceError,
+  type PlaybackTarget,
+  type PlayMethod,
+  resolvePlaybackTarget,
+} from './playback/resolvePlayback';

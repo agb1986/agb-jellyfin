@@ -8,6 +8,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { AppStackScreenProps, Screens } from '../components/navigation/types';
 import { useJellyfin } from '../jellyfin/react/JellyfinProvider';
 import { COLORS } from '../styles/Colors';
 import { scaleUxToDp } from '../utils/pixelUtils';
@@ -24,7 +25,9 @@ import SignInScreen from './jellyfin/SignInScreen';
  * because the splash has to come down within about fifteen seconds or
  * lcm_service kills the app.
  */
-const JellyfinScreen = () => {
+const JellyfinScreen = ({
+  navigation,
+}: AppStackScreenProps<Screens.JELLYFIN_SCREEN>) => {
   // App.tsx calls preventHideSplashScreen() on TV and never hides it again in
   // a release build; in the sample only MovieGrid does. Any screen that
   // replaces the home screen as the initial route must hide it itself, or the
@@ -56,7 +59,7 @@ const JellyfinScreen = () => {
 
   switch (status) {
     case 'signed-in':
-      return <LibraryScreen />;
+      return <LibraryScreen navigation={navigation} />;
 
     case 'signed-out':
       return <SignInScreen />;

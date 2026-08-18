@@ -196,6 +196,43 @@ that needs a press to fetch anything cannot be verified on a headless device.
 and the sample's own screens, which stay registered while their parts are
 reused.
 
+### From a Jellyfin item to the player
+
+`src/jellyfin/playback/resolvePlayback.ts` is where the two halves of the app
+meet. It takes the server's `PlaybackInfo` answer and produces the `TitleData`
+the sample's VideoHandler and ShakaPlayer already consume.
+
+| Server says | What is opened | Format |
+|---|---|---|
+| DirectPlay, and the container is mp4/m4v/mov | `/Videos/{id}/stream?static=true` | `MP4` |
+| anything else | the server's `TranscodingUrl`, verbatim | `HLS` |
+
+Direct play is refused for containers the static player cannot open even when
+the server offers it: Shaka handles HLS and DASH only, so an MKV has to be
+remuxed however capable the decoder is. The `TranscodingUrl` is used exactly as
+given — it already encodes the settings the server chose, including its own
+ApiKey, and appending to it risks contradicting them.
+
+**Media URLs carry the token as `api_key`, not in a header.** Shaka and the
+static player fetch through their own networking, which never sees the
+`Authorization` header the API client sets; Jellyfin's own `TranscodingUrl`
+does the same. So playback URLs — unlike API calls — can end up in a proxy or
+server access log. That is an argument for per-device revocable tokens, not
+for a server-wide API key.
+
+**`TranscodeReasons` has to be read from two places.** It is the entire
+feedback signal for tuning the DeviceProfile, and Jellyfin 10.11 was observed
+returning `TranscodeReasons: null` on the media source while transcoding, with
+the real answer present only as a query parameter inside `TranscodingUrl`. The
+resolver checks the field first and falls back to the URL.
+
+Every play logs one line naming the method, format, codecs and reasons — which
+is the Phase 2 loop in miniature:
+
+```
+[jellyfin] play "Big Buck Bunny" method=DirectPlay format=MP4 vcodec=avc1 acodec=mp4a reasons=none
+```
+
 ### Reading anything off a Vega device
 
 Two traps make on-device debugging much harder than it looks, and cost most of

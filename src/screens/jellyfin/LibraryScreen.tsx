@@ -9,9 +9,11 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { Screens } from '../../components/navigation/types';
 import { useJellyfin } from '../../jellyfin/react/JellyfinProvider';
 import { COLORS } from '../../styles/Colors';
 import { scaleUxToDp } from '../../utils/pixelUtils';
+import JellyfinDetailsScreen from './JellyfinDetailsScreen';
 
 /**
  * The signed-in landing screen: the user's libraries, and the items in the
@@ -27,8 +29,18 @@ const POSTER_WIDTH = 240;
 const POSTER_HEIGHT = 360;
 const PAGE_SIZE = 60;
 
-const LibraryScreen = () => {
+export interface LibraryScreenProps {
+  navigation: {
+    navigate: (screen: Screens, params: unknown) => void;
+  };
+}
+
+const LibraryScreen = ({ navigation }: LibraryScreenProps) => {
   const { session, signOut } = useJellyfin();
+  // Details lives inside this screen rather than as its own route: the item is
+  // already in hand, and pushing a route would mean re-fetching it or
+  // threading a BaseItemDto through navigation params.
+  const [selectedItem, setSelectedItem] = useState<BaseItemDto | null>(null);
   const [views, setViews] = useState<BaseItemDto[]>([]);
   const [selectedViewId, setSelectedViewId] = useState<string | null>(null);
   const [items, setItems] = useState<BaseItemDto[]>([]);
@@ -110,7 +122,10 @@ const LibraryScreen = () => {
           : undefined;
 
       return (
-        <View style={styles.tile}>
+        <TouchableOpacity
+          style={styles.tile}
+          onPress={() => setSelectedItem(item)}
+          testID={`jellyfin-item-${item.Id}`}>
           {uri ? (
             <Image
               source={{ uri }}
@@ -124,11 +139,21 @@ const LibraryScreen = () => {
           <Text style={styles.tileLabel} numberOfLines={2}>
             {item.Name}
           </Text>
-        </View>
+        </TouchableOpacity>
       );
     },
     [session],
   );
+
+  if (selectedItem) {
+    return (
+      <JellyfinDetailsScreen
+        item={selectedItem}
+        navigation={navigation}
+        onBack={() => setSelectedItem(null)}
+      />
+    );
+  }
 
   return (
     <View style={styles.container} testID="jellyfin-library-screen">

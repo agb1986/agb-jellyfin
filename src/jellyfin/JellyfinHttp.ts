@@ -51,7 +51,7 @@ export class JellyfinHttp {
   readonly clientInfo: ClientInfo;
   readonly deviceInfo: DeviceInfo;
 
-  private accessToken: string;
+  private currentAccessToken: string;
   private readonly timeoutMs: number;
   private readonly fetchImpl: typeof fetch;
 
@@ -59,7 +59,7 @@ export class JellyfinHttp {
     this.serverUrl = options.serverUrl.trim().replace(/\/+$/, '');
     this.clientInfo = options.clientInfo;
     this.deviceInfo = options.deviceInfo;
-    this.accessToken = options.accessToken ?? '';
+    this.currentAccessToken = options.accessToken ?? '';
     this.timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
     this.fetchImpl = options.fetchImpl ?? fetch;
   }
@@ -70,12 +70,26 @@ export class JellyfinHttp {
   }
 
   /**
+   * The raw token.
+   *
+   * Exposed only because media URLs need it in the query string: Shaka fetches
+   * manifests and segments through its own networking stack, which never sees
+   * the Authorization header this class sets. Jellyfin's own clients do the
+   * same — the TranscodingUrl the server hands back already contains an
+   * ApiKey parameter. The cost is that playback URLs, unlike API calls, put
+   * the token where a proxy or server access log can record it.
+   */
+  get accessToken(): string {
+    return this.currentAccessToken;
+  }
+
+  /**
    * Called after Quick Connect completes, and with '' on sign-out. Kept
    * mutable so a single client instance survives sign-in without every holder
    * needing to swap it.
    */
   setAccessToken(accessToken: string): void {
-    this.accessToken = accessToken;
+    this.currentAccessToken = accessToken;
   }
 
   /** Absolute URL for a server-relative path — for image and stream URLs. */
@@ -144,7 +158,7 @@ export class JellyfinHttp {
       [AUTHORIZATION_HEADER]: buildAuthorizationHeader(
         this.clientInfo,
         this.deviceInfo,
-        this.accessToken,
+        this.currentAccessToken,
       ),
       Accept: 'application/json',
     };
