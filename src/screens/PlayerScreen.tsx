@@ -40,6 +40,7 @@ import { FrameImageSource } from '../services/bif/FrameImageSource';
 import { COLORS } from '../styles/Colors';
 import { VideoHandler } from '../utils/VideoHandler';
 import VideoPlayerUI from '../w3cmedia/mediacontrols/VideoPlayerUI';
+import { useJellyfinPlaybackReporting } from '../jellyfin/react/useJellyfinPlaybackReporting';
 import { ShakaPlayer } from '../w3cmedia/shakaplayer/ShakaPlayer';
 
 const BACKGROUND_STATE: AppStateStatus = 'background';
@@ -53,7 +54,7 @@ const PlayerScreen = ({
   navigation,
   route,
 }: AppStackScreenProps<Screens.PLAYER_SCREEN>) => {
-  const { data } = route.params;
+  const { data, jellyfin } = route.params;
   const { width: deviceWidth, height: deviceHeight } = useWindowDimensions();
   const addKeplerAppStateListenerCallback = (
     eventType: KeplerAppStateEvent,
@@ -104,6 +105,22 @@ const PlayerScreen = ({
     setVideoPlayElapsedTimeM,
     setShowBuffering,
   );
+
+  // Playback reporting, when this screen was opened from a Jellyfin item.
+  // Server-side rather than local: five sticks sharing one server have to
+  // agree on where a film was paused, and that is also what fills Continue
+  // Watching. Does nothing for the sample's own content.
+  useJellyfinPlaybackReporting(videoRef, {
+    descriptor: jellyfin
+      ? {
+          itemId: jellyfin.itemId,
+          playSessionId: jellyfin.playSessionId,
+          mediaSourceId: jellyfin.mediaSourceId,
+          playMethod: jellyfin.playMethod,
+        }
+      : undefined,
+    startPositionTicks: jellyfin?.startPositionTicks,
+  });
 
   useTVEventHandler((evt: HWEvent) => {
     if (!Platform.isTV) {

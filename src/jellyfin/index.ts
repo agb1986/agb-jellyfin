@@ -74,3 +74,8 @@ export {
   type PlayMethod,
   resolvePlaybackTarget,
 } from './playback/resolvePlayback';
+export {
+  PlaybackReporter,
+  type PlaybackSessionDescriptor,
+  type PlaybackState,
+} from './playback/PlaybackReporter';

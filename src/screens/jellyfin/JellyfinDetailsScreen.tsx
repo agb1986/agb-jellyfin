@@ -77,6 +77,13 @@ const JellyfinDetailsScreen = ({
       navigation.navigate(Screens.PLAYER_SCREEN, {
         data: target.titleData,
         focusId: item.Id,
+        jellyfin: {
+          itemId: item.Id,
+          playSessionId: target.playSessionId,
+          mediaSourceId: target.mediaSourceId,
+          playMethod: target.playMethod,
+          startPositionTicks: target.startPositionTicks,
+        },
       });
     } catch (playError) {
       console.error(

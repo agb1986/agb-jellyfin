@@ -51,6 +51,19 @@ export type AppStackParamList = {
   [Screens.PLAYER_SCREEN]: {
     data: TitleData;
     focusId?: number | string;
+    /**
+     * Present when the player was opened from a Jellyfin item. Carries what
+     * playback reporting needs — the server's session id, which media source
+     * was chosen, and how it is being delivered — plus the resume point.
+     * Absent for the sample's own content, which reports nowhere.
+     */
+    jellyfin?: {
+      itemId: string;
+      playSessionId?: string;
+      mediaSourceId?: string;
+      playMethod?: 'DirectPlay' | 'DirectStream' | 'Transcode';
+      startPositionTicks?: number;
+    };
   };
 };
 

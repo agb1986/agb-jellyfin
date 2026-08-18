@@ -20,6 +20,7 @@
 import type { MediaSourceInfo } from '@jellyfin/sdk/lib/generated-client/models';
 import { JellyfinClient } from '../../src/jellyfin/JellyfinClient';
 import { buildDeviceProfile } from '../../src/jellyfin/deviceProfile';
+import { PlaybackReporter } from '../../src/jellyfin/playback/PlaybackReporter';
 import { resolvePlaybackTarget } from '../../src/jellyfin/playback/resolvePlayback';
 import { JellyfinSession } from '../../src/jellyfin/JellyfinSession';
 import { MemoryKeyValueStore } from '../../src/jellyfin/storage/KeyValueStore';
@@ -283,6 +284,62 @@ describeLive('against a live Jellyfin server', () => {
     const playlist = await fetch(hlsTarget.titleData.uri);
     expect(playlist.status).toBe(200);
     expect(await playlist.text()).toContain('#EXTM3U');
+  });
+
+  it('turns a reported stop into a resume point the server hands back', async () => {
+    // The whole reason reporting is server-side: this is what makes a film
+    // resume on a different stick, and what fills Continue Watching.
+    const session = await JellyfinSession.create({
+      store: new MemoryKeyValueStore(),
+      clientInfo,
+      deviceName: 'integration',
+      serverUrl,
+    });
+    session.client.setAccessToken(
+      await signInWithPassword(serverUrl as string),
+    );
+    await session.client.getCurrentUser();
+
+    const views = await session.client.getUserViews();
+    // Jellyfin refuses to store a resume point for anything shorter than
+    // MinResumeDurationSeconds (five minutes by default), and treats a
+    // position past MaxResumePct as watched — so this needs a long item, not
+    // whichever one happens to be first.
+    const items = await session.client.getItems({
+      parentId: views.Items?.[0]?.Id,
+      recursive: true,
+      includeItemTypes: ['Movie'],
+      searchTerm: 'Long Feature',
+      limit: 1,
+    });
+    const item = items.Items?.[0];
+    if (!item) {
+      throw new Error(
+        'This test needs a library item longer than five minutes named "Long Feature"',
+      );
+    }
+    const itemId = item.Id as string;
+
+    const playback = await session.client.getPlaybackInfo(itemId);
+    const target = resolvePlaybackTarget(session.client, item, playback);
+
+    const reporter = new PlaybackReporter(session.client, {
+      itemId,
+      playSessionId: target.playSessionId,
+      mediaSourceId: target.mediaSourceId,
+      playMethod: target.playMethod,
+    });
+
+    await reporter.start({ positionSeconds: 0 });
+    await reporter.stop({ positionSeconds: 90 });
+
+    const afterwards = await session.client.getItem(itemId);
+    const resumeTicks = afterwards.UserData?.PlaybackPositionTicks ?? 0;
+
+    process.stdout.write(
+      `[integration] resume point after reporting 90s: ${resumeTicks} ticks\n`,
+    );
+    expect(resumeTicks).toBe(900_000_000);
   });
 
   it('accepts playback progress reports', async () => {

@@ -179,6 +179,17 @@ export const JellyfinProvider = ({
   );
 };
 
+/**
+ * The context, or null when there is no provider above.
+ *
+ * The player screen is shared with the sample's own content and can be
+ * rendered outside the Jellyfin tree; asking for the session there is a
+ * question, not a mistake.
+ */
+export const useOptionalJellyfin = (): JellyfinContextValue | null => {
+  return useContext(JellyfinContext);
+};
+
 export const useJellyfin = (): JellyfinContextValue => {
   const value = useContext(JellyfinContext);
   if (!value) {

@@ -233,6 +233,34 @@ is the Phase 2 loop in miniature:
 [jellyfin] play "Big Buck Bunny" method=DirectPlay format=MP4 vcodec=avc1 acodec=mp4a reasons=none
 ```
 
+### Playback reporting
+
+`/Sessions/Playing`, `/Progress` and `/Stopped` are what make resume, watched
+state and Continue Watching work. They are reported server-side on purpose:
+five sticks sharing one server have to agree on where a film was paused, and
+local storage cannot deliver that.
+
+`PlaybackReporter` owns the rules — start once, throttle progress to one report
+per ten seconds, send a pause or resume immediately regardless (the server uses
+it to decide whether the session is still watching), stop once. Every failure
+is swallowed and logged: a dropped report costs a little resume accuracy, while
+an exception raised into the player loses the frame.
+
+`useJellyfinPlaybackReporting` drives it from the player's video element by
+polling rather than by listening. The sample's VideoHandler owns that element's
+listeners and rebuilds them per instance; adding more would mean reaching into
+it, and the playback spike showed how easily that goes wrong. Reading
+`currentTime` and `paused` on a timer needs nothing from it.
+
+Two behaviours worth knowing when testing this against a real server:
+
+- **Jellyfin will not store a resume point for a short item.**
+  `MinResumeDurationSeconds` defaults to five minutes, so a thirty-second test
+  clip silently resumes at zero no matter what is reported. The integration
+  test keeps a fifteen-minute item around for exactly this reason.
+- A position past `MaxResumePct` (90% by default) marks the item watched and
+  clears the resume point rather than storing it.
+
 ### Reading anything off a Vega device
 
 Two traps make on-device debugging much harder than it looks, and cost most of
