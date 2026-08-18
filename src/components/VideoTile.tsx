@@ -6,18 +6,8 @@ import { Animated, StyleSheet } from 'react-native';
 import { focusManager } from '../utils/FocusManager';
 import { areComponentPropsEqual } from '../utils/lodashHelper';
 
-import {
-  ContentIdNamespaces,
-  ContentInteractionType,
-  ContentPersonalizationServer,
-} from '@amazon-devices/kepler-content-personalization';
 import { Card } from '@amazon-devices/kepler-ui-components';
 import { useNavigation } from '@amazon-devices/react-navigation__native';
-import { isContentPersonalizationEnabled } from '../config/AppConfig';
-import {
-  getMockContentID,
-  getMockContentInteraction,
-} from '../personalization/mock/ContentPersonalizationMocks';
 import { TitleData } from '../types/TitleData';
 import { HomeScreenNavigationProps, Screens } from './navigation/types';
 
@@ -117,28 +107,6 @@ const VideoTile = ({
   const focusableElementRef = useRef<any>(null);
 
   /**
-   * Reports content interaction to the personalization service when enabled.
-   * This tracks when users navigate to video details for recommendation improvements.
-   */
-  const reportContentNavigation = useCallback(() => {
-    // Only track interactions if content personalization is enabled in app config
-    if (!isContentPersonalizationEnabled()) {
-      return;
-    }
-
-    const contentInteraction = getMockContentInteraction(
-      ContentInteractionType.DETAIL_VIEW,
-      getMockContentID(data.title, ContentIdNamespaces.NAMESPACE_CDF_ID),
-    );
-    console.info(
-      `k_content_per: Reporting new content interaction. Accessing detailed information for selected title : ${data.title}`,
-    );
-    ContentPersonalizationServer.reportNewContentInteraction(
-      contentInteraction,
-    );
-  }, [data.title]);
-
-  /**
    * Handles focus restoration when returning from the details screen.
    * Ensures the correct tile regains focus based on its position in the grid.
    */
@@ -158,13 +126,10 @@ const VideoTile = ({
   );
 
   /**
-   * Navigates to the video details screen and reports the interaction.
+   * Navigates to the video details screen.
    * Also sets up focus restoration callback for when user returns.
    */
   const navigateToDetailsScreen = useCallback(async () => {
-    // Track user interaction for personalization
-    reportContentNavigation();
-
     // Register focus restoration callback
     const focusKey = `tile_${data.id}`;
     focusManager.registerFocusCallback(focusKey, () => {

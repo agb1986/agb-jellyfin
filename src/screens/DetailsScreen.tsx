@@ -7,7 +7,6 @@ import { TVFocusGuideView } from '@amazon-devices/react-native-kepler';
 import { ActionButtons } from '../components/details/ActionButtons';
 import { DetailHeader } from '../components/details/DetailHeader';
 import { RelatedMoviesSection } from '../components/details/RelatedMoviesSection';
-import { RentalInfo } from '../components/details/RentalInfo';
 import {
   AppStackParamList,
   AppStackScreenProps,
@@ -37,7 +36,6 @@ const DetailsScreen = ({
     onBlurPlayMovie,
     format,
     rating,
-    rentalInfo,
     headerGuideRef,
     onBackIconFocus,
     onBackIconBlur,
@@ -73,7 +71,6 @@ const DetailsScreen = ({
               onPlayMovieFocus={onPlayMovieFocus}
             />
           </TVFocusGuideView>
-          <RentalInfo {...rentalInfo} />
           <VideoFileType selectedFileType={format} />
           <TVFocusGuideView autoFocus trapFocusRight trapFocusLeft>
             <RelatedMoviesSection

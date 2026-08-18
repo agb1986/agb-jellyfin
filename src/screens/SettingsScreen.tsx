@@ -4,19 +4,11 @@ import { TVFocusGuideView } from '@amazon-devices/react-native-kepler';
 import { useFocusEffect } from '@amazon-devices/react-navigation__core';
 import React, { useCallback, useMemo } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
-import { useDispatch, useSelector } from 'react-redux';
 
-import { AccountLoginWrapperInstance } from '../AccountLoginWrapper';
 import BufferingWindow from '../components/BufferingWindow';
 import ConnectionComponent from '../components/ConnectionComponent';
 import LocaleComponent from '../components/LocaleComponent';
-import LoginInformation from '../components/LoginInformation';
 import { AppDrawerScreenProps, Screens } from '../components/navigation/types';
-import { isAccountLoginEnabled } from '../config/AppConfig';
-import {
-  setLoginStatus,
-  settingsSelectors,
-} from '../store/settings/SettingsSlice';
 import { COLORS } from '../styles/Colors';
 import { scaleUxToDp } from '../utils/pixelUtils';
 import { useDeviceInfo } from '../utils/useDeviceInfo';
@@ -35,8 +27,6 @@ const ListItem: React.FC<ItemProps> = React.memo(({ title, value }) => (
 
 const SettingsScreen: React.FC<AppDrawerScreenProps<Screens.SETTINGS_SCREEN>> =
   React.memo(({ navigation }) => {
-    const dispatch = useDispatch();
-    const loginStatus = useSelector(settingsSelectors.loginStatus);
     const { deviceInfo, isLoading, fetchDeviceInfo } = useDeviceInfo();
 
     useFocusEffect(
@@ -44,11 +34,6 @@ const SettingsScreen: React.FC<AppDrawerScreenProps<Screens.SETTINGS_SCREEN>> =
         fetchDeviceInfo();
       }, [fetchDeviceInfo]),
     );
-
-    const handleOnToggleLoginStatus = useCallback(() => {
-      dispatch(setLoginStatus(!loginStatus));
-      AccountLoginWrapperInstance.updateStatus(!loginStatus);
-    }, [dispatch, loginStatus]);
 
     const listData: ItemProps[] = useMemo(() => {
       if (!deviceInfo) {
@@ -96,12 +81,6 @@ const SettingsScreen: React.FC<AppDrawerScreenProps<Screens.SETTINGS_SCREEN>> =
           <Text style={styles.title}>Settings</Text>
           <LocaleComponent />
           <ConnectionComponent testID="connection-component" />
-          {isAccountLoginEnabled() && (
-            <LoginInformation
-              loginStatus={loginStatus}
-              handleOnToggleLoginStatus={handleOnToggleLoginStatus}
-            />
-          )}
           <View style={styles.listContainer}>{renderListItems()}</View>
           <TVFocusGuideView trapFocusRight>
             <Button

@@ -97,27 +97,30 @@ Quick Connect at runtime and are stored per device.
 
 ## What was stripped from the sample
 
-`manifest.toml` was cut from 409 lines to 178, and the matching headless entry points
-(`service.js`, `task.js`) deleted. Removed:
+The sample ships features a Jellyfin client has no use for. All of them are gone —
+manifest entries, dependencies, and source:
 
-- **LiveTV** — EPG sync source component, EPG sync + install/update tasks
-- **In-App Purchasing** — services and modules
-- **Content Personalization** — data refresh service, datastore, privileges
-- **Content Launcher** and **Account Login** modules
+| Feature | What went |
+|---|---|
+| **LiveTV** | EPG sync source component, EPG sync + install/update tasks, `src/livetv/`, `LiveForceSync.tsx` |
+| **In-App Purchasing** | services and modules, `src/iap/`, the Rent / Purchase Subscription buttons on Details |
+| **Content Personalization** | data refresh service, datastore, privileges, `src/personalization/`, every `reportNew*` call in the player and tiles |
+| **Content Launcher** | the external launch handler on Home |
+| **Account Login** | `AccountLoginWrapper`, the Settings login toggle |
+| **Headless tasks** | `service.js`, `task.js`, `src/headless/` |
 
 Retained: the single interactive component, media/audio/network/DRM privileges, and
 **Vega Media Controls** (`IMediaPlaybackServer`) for transport controls during playback.
 
-The corresponding *source* under `src/` (`livetv/`, `iap/`, `personalization/`,
-`headless/`) is still present but no longer reachable from the manifest. It will be
-pruned as the Jellyfin screens replace the sample's.
+The redux `loginStatus` slice survives — it is self-contained and will likely back
+Jellyfin's own auth state.
 
 ### Editing the manifest is not enough
 
 `npm run build:app` **rewrites `manifest.toml` in place**, appending a
 `[[needs.module]]` entry for every native module the JS dependency tree autolinks.
-The first build after the strip grew the file from 178 to 319 lines and put back
-modules for exactly the features that were removed:
+The first build after the manifest strip grew the file from 178 to 319 lines and put
+back modules for exactly the features that had been removed:
 
 ```
 /com.amazon.kepler.kepler_epg_provider_1@IKeplerEpgProvider_9
@@ -127,11 +130,17 @@ modules for exactly the features that were removed:
 ...
 ```
 
-Autolinking keys off `package.json` **dependencies**, not off the manifest. To
-actually drop a feature from the package you must remove its `@amazon-devices/*`
-dependency; hand-editing `[needs]` only gets reverted on the next build. Treat the
-autolinked block as generated output.
+Autolinking keys off `package.json` **dependencies**, not off the manifest, so
+hand-editing `[needs]` gets reverted on the next build. Dropping a feature takes
+three steps, in order:
 
+1. remove every import of it from `src/` (and its tests)
+2. remove its `@amazon-devices/*` entry from `package.json`, then `npm prune` —
+   the autolinker reads `node_modules`, so leaving the package installed keeps the
+   module in the manifest even after `package.json` no longer lists it
+3. delete the stale `[[needs.module]]` block from `manifest.toml`
+
+The manifest now sits at 295 lines / 26 modules and survives a rebuild unchanged.
 
 ## Status
 

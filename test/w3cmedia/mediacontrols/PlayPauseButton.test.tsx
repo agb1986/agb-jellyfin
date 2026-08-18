@@ -5,8 +5,6 @@ import { describe } from '@jest/globals';
 import '@testing-library/jest-native/extend-expect';
 import { fireEvent, render } from '@testing-library/react-native';
 import React from 'react';
-import { consoleInfoSpy } from '../../../jest.setup';
-import { getMockPlaybackEventForVideo } from '../../../src/personalization/mock/ContentPersonalizationMocks';
 import PlayPauseButton, {
   PlayPauseButtonProps,
 } from '../../../src/w3cmedia/mediacontrols/PlayPauseButton';
@@ -132,7 +130,6 @@ describe('PlayPauseButton onPress', () => {
     fireEvent.press(getByTestId('player-btn-play-pause'));
     pauseMock();
     expect(videoRef.current?.pause).toHaveBeenCalled();
-    expect(getMockPlaybackEventForVideo).toBeDefined();
   });
   it('function needs to be called on press', () => {
     const { getByTestId } = render(
@@ -148,8 +145,5 @@ describe('PlayPauseButton onPress', () => {
     );
     fireEvent.press(getByTestId('player-btn-play-pause'));
     expect(videoRef.current?.play).toHaveBeenCalled();
-    expect(consoleInfoSpy).toHaveBeenCalledWith(
-      'k_content_per: Creating playbackEvent object in play',
-    );
   });
 });

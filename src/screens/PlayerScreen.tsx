@@ -1,13 +1,4 @@
 import {
-  ChangeChannelStatus,
-  ChannelServerComponent2,
-  OperationError,
-} from '@amazon-devices/kepler-channel';
-import {
-  ContentPersonalizationServer,
-  PlaybackState,
-} from '@amazon-devices/kepler-content-personalization';
-import {
   BackHandler,
   HWEvent,
   IComponentInstance,
@@ -43,9 +34,7 @@ import {
   AppStackScreenProps,
   Screens,
 } from '../components/navigation/types';
-import { isContentPersonalizationEnabled } from '../config/AppConfig';
 import { CAPTION_DISABLE_ID, EVENT_KEY_DOWN } from '../constants';
-import { getMockPlaybackEventForVideo } from '../personalization/mock/ContentPersonalizationMocks';
 import { getBifFrameImageSource } from '../services/bif/bifService';
 import { FrameImageSource } from '../services/bif/FrameImageSource';
 import { COLORS } from '../styles/Colors';
@@ -64,7 +53,7 @@ const PlayerScreen = ({
   navigation,
   route,
 }: AppStackScreenProps<Screens.PLAYER_SCREEN>) => {
-  const { data, onChannelTuneSuccess, onChannelTuneFailed } = route.params;
+  const { data } = route.params;
   const { width: deviceWidth, height: deviceHeight } = useWindowDimensions();
   const addKeplerAppStateListenerCallback = (
     eventType: KeplerAppStateEvent,
@@ -88,8 +77,9 @@ const PlayerScreen = ({
   };
   const [isVideoEnded, setVideoEnded] = React.useState<boolean>(false);
   const [isVideoError, setVideoError] = React.useState<boolean>(false);
-  const [videoPlayElapsedTimeM, setVideoPlayElapsedTimeM] =
-    React.useState<number>(0);
+  // VideoHandler pushes elapsed playback time here. Nothing consumes it yet;
+  // it is the hook Jellyfin progress reporting will attach to.
+  const [, setVideoPlayElapsedTimeM] = React.useState<number>(0);
   const timer = useRef<null | ReturnType<typeof setTimeout> | number>(null);
 
   const videoRef = useRef<VideoPlayer | null>(null);
@@ -173,36 +163,6 @@ const PlayerScreen = ({
     }
   }, [isVideoError]);
 
-  /**
-   * Function to report the video player screen exit.
-   */
-  const reportVideoExit = () => {
-    if (!isContentPersonalizationEnabled()) {
-      return;
-    }
-
-    try {
-      console.info(
-        '[PlayerScreen.tsx] - reportVideoExit - k_content_per: Creating playbackEvent object on exit',
-      );
-      const playbackEvent = getMockPlaybackEventForVideo(
-        videoRef,
-        videoRef.current!.currentSrc,
-        PlaybackState.EXIT,
-      );
-      ContentPersonalizationServer.reportNewPlaybackEvent(playbackEvent);
-      console.info(
-        `[PlayerScreen.tsx] - reportVideoexit - k_content_per: Exit : Reporting new playback event :${JSON.stringify(
-          playbackEvent,
-        )}`,
-      );
-    } catch (e) {
-      console.error(
-        `[PlayerScreen.tsx] - reportVideoexit - k_content_per: ${e}`,
-      );
-    }
-  };
-
   useEffect(() => {
     return () => {
       /**
@@ -232,8 +192,6 @@ const PlayerScreen = ({
       captionStatus.current = false;
       return true;
     }
-
-    reportVideoExit();
 
     surfaceHandle.current = null;
     captionViewHandle.current = null;
@@ -279,40 +237,6 @@ const PlayerScreen = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [Platform.isTV]);
 
-  const reportVideoPlaying = useCallback(() => {
-    if (!isContentPersonalizationEnabled()) {
-      return;
-    }
-    try {
-      const playbackEvent = getMockPlaybackEventForVideo(
-        videoRef,
-        videoRef.current!.currentSrc,
-        PlaybackState.PLAYING,
-      );
-      console.info(
-        `[PlayerScreen.tsx] - reportVideoPlaying -  k_content_per: Reported playback event : ${JSON.stringify(
-          playbackEvent,
-        )}`,
-      );
-      ContentPersonalizationServer.reportNewPlaybackEvent(playbackEvent);
-    } catch (e) {
-      console.error(
-        `[PlayerScreen.tsx] - reportVideoPlaying -  k_content_per: ${e}`,
-      );
-    }
-  }, [videoRef]);
-
-  useEffect(() => {
-    if (videoPlayElapsedTimeM === 0) {
-      return;
-    }
-    console.info(
-      '[PlayerScreen.tsx] - reportVideoPlaying - k_content_per: Reporting playback event for Continued PLAYING',
-    );
-
-    reportVideoPlaying();
-  }, [reportVideoPlaying, videoPlayElapsedTimeM]);
-
   const playVideo = useCallback(async () => {
     try {
       // Hide buffer view and Play the video if allowed...
@@ -321,40 +245,14 @@ const PlayerScreen = ({
       console.debug(
         '[PlayerScreen.tsx] - playVideo -  Video playing successfully',
       );
-      if (onChannelTuneSuccess) {
-        const channelResponse =
-          ChannelServerComponent2.makeChannelResponseBuilder()
-            .status(ChangeChannelStatus.SUCCESS)
-            .data(data.title)
-            .build();
-        onChannelTuneSuccess(channelResponse);
-      }
-      console.info(
-        '[PlayerScreen.tsx] - playVideo - k_content_per: Reporting new playback event',
-      );
-      reportVideoPlaying();
     } catch (error) {
       console.error(
         '[PlayerScreen.tsx] - playVideo - Error occurred while playing video {}',
         error,
       );
-      if (onChannelTuneFailed) {
-        onChannelTuneFailed(
-          new OperationError(
-            `[PlayerScreen.tsx] - playVideo - Video content could not be played due to error ${error}`,
-          ),
-        );
-      }
       navigateBack();
     }
-  }, [
-    videoRef,
-    data.title,
-    navigateBack,
-    onChannelTuneFailed,
-    onChannelTuneSuccess,
-    reportVideoPlaying,
-  ]);
+  }, [videoRef, navigateBack]);
 
   const setSurface = useCallback(async () => {
     if (surfaceHandle.current) {

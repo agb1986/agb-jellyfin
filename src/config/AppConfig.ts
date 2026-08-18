@@ -7,18 +7,6 @@ A refactor for this implementation is required, in order to remove hardcoded val
 const isSimulator =
   modelValue.includes('simulator') || modelValue.includes('AQVV01P');
 
-const isContentPersonalizationEnabled = () => {
-  return !isSimulator && Platform.isTV;
-};
-
-const isInAppPurchaseEnabled = () => {
-  return Platform.isTV;
-};
-
-const isAccountLoginEnabled = () => {
-  return Platform.isTV;
-};
-
 const isRunningOnAutomotive = () => {
   return !isSimulator && !Platform.isTV;
 };
@@ -63,9 +51,6 @@ const isDpadControllerSupported = () => {
 };
 
 export {
-  isContentPersonalizationEnabled,
-  isInAppPurchaseEnabled,
-  isAccountLoginEnabled,
   isPlaybackSpikeEnabled,
   isDpadControllerSupported,
   isRunningOnAutomotive,

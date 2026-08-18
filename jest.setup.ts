@@ -41,34 +41,6 @@ export const consoleInfoSpy = jest
 jest.mock('@amazon-devices/react-native-vector-icons/MaterialIcons', () =>
   jest.requireMock('./test/helperMocks/MockMaterialIcons'),
 );
-jest.mock('@amazon-devices/kepler-content-personalization', () => ({
-  __esModule: true,
-  PlaybackState: jest.fn(),
-  ContentPersonalizationServer: {
-    reportNewContentEntitlement: jest.fn(),
-    reportRemovedContentEntitlement: jest.fn(),
-    reportNewCustomerListEntry: jest.fn(),
-    reportRemovedCustomerListEntry: jest.fn(),
-    reportNewContentInteraction: jest.fn(),
-    reportRefreshedCustomerList: jest.fn(),
-    reportRefreshedContentEntitlements: jest.fn(),
-    reportRefreshedPlaybackEvents: jest.fn(),
-  },
-  ContentInteractionType: {
-    INGRESS: 'INGRESS',
-  },
-  CustomerListType: {
-    WATCHLIST: 'WATCHLIST',
-  },
-  ContentIdNamespaces: {
-    NAMESPACE_CDF_ID: 'NAMESPACE_CDF_ID',
-  },
-}));
-jest.mock('@amazon-devices/kepler-epg-provider', () => ({
-  __esModule: true,
-  ChannelDescriptorBuilder: jest.fn(),
-  IChannelDescriptor: jest.fn(),
-}));
 jest.mock('@amazon-devices/react-native-w3cmedia', () => ({
   __esModule: true,
   KeplerVideoSurfaceView: ({
@@ -149,13 +121,6 @@ jest.mock('@amazon-devices/react-native-gesture-handler', () => ({
     END: 5,
   },
 }));
-jest.mock('@amazon-devices/kepler-media-account-login', () => ({
-  AccountLoginServerComponent: jest.fn(),
-  IAccountLoginHandlerAsync: jest.fn(),
-  IAccountLoginServerAsync: jest.fn(),
-  IStatus: jest.fn(),
-  StatusType: jest.fn(),
-}));
 jest.mock('@amazon-devices/react-native-localize', () => ({
   getCountry: jest.fn(),
   getLocales: jest.fn(),
@@ -198,25 +163,6 @@ jest.mock('react-native-event-listeners', () => ({
 jest.mock('@amazon-devices/kepler-performance-api', () => ({
   useReportFullyDrawn: jest.fn().mockReturnValue(jest.fn()),
 }));
-jest.mock('@amazon-devices/kepler-media-content-launcher', () => ({
-  ContentLauncherServerComponent: jest.fn().mockImplementation(() => ({
-    getOrMakeServer: jest.fn().mockReturnValue({
-      setHandler: jest.fn(),
-    }),
-    makeLauncherResponseBuilder: jest.fn().mockReturnValue({
-      contentLauncherStatus: jest.fn().mockReturnValue({
-        build: jest.fn().mockReturnValue({}),
-      }),
-    }),
-  })),
-  ContentLauncherStatusType: {
-    SUCCESS: 'SUCCESS',
-  },
-  IContentLauncherHandler: jest.fn(),
-  IContentSearch: jest.fn(),
-  ILaunchContentOptionalFields: jest.fn(),
-  ILauncherResponse: jest.fn(),
-}));
 
 jest.mock('./src/utils/lodashHelper', () => ({
   areComponentPropsEqual: jest.fn((prevProps, nextProps) => {
@@ -224,30 +170,6 @@ jest.mock('./src/utils/lodashHelper', () => ({
   }),
 }));
 
-jest.mock('./src/AccountLoginWrapper', () => ({
-  AccountLoginWrapperInstance: {
-    updateStatus: jest.fn(),
-  },
-  onStartService: jest.fn(),
-  onStopService: jest.fn(),
-}));
-jest.mock('@amazon-devices/kepler-channel', () => ({
-  ChannelServerComponent2: {
-    getOrMakeServer: jest.fn().mockReturnValue({
-      setHandlerForComponent: jest.fn(),
-    }),
-    makeChannelResponseBuilder: jest.fn().mockReturnValue({
-      channelStatus: jest.fn().mockReturnValue({
-        build: jest.fn().mockReturnValue({}),
-      }),
-    }),
-  },
-  ChannelServerComponent: {
-    channelServer: {
-      handler: jest.fn(),
-    },
-  },
-}));
 jest.mock('react-native', () => {
   const RN = jest.requireActual('react-native');
   RN.Animated.timing = jest.fn().mockReturnValue({
@@ -286,24 +208,8 @@ jest.mock('@amazon-devices/react-native-svg', () => ({
 }));
 
 // Add mocks of internal files here
-jest.mock('./src/iap/utils/IAPManager', () => ({
-  IAPManager: {
-    getPurchaseUpdates: jest.fn(),
-    triggerPurchase: jest.fn(),
-  },
-}));
-jest.mock('./src/iap/IAPConstants', () => ({
-  IAPConstants: {
-    MONTHLY_SUBSCRIPTION_SKU: 'monthly_subscription_sku',
-    PURCHASE_TITLE_SKU: 'purchase_title_sku',
-  },
-}));
 jest.mock('./src/config/AppConfig', () => ({
-  isContentPersonalizationEnabled: jest.fn(() => true),
-  isInAppPurchaseEnabled: jest.fn(() => true),
-  isAccountLoginEnabled: jest.fn(() => true),
   isDpadControllerSupported: jest.fn(() => true),
-  isChannelTuningV2Enabled: jest.fn(() => true),
   isPlaybackSpikeEnabled: jest.fn(() => false),
 }));
 jest.mock('./src/w3cmedia/shakaplayer/ShakaPlayer', () => ({
@@ -318,7 +224,6 @@ jest.mock('./src/services/dataProviderFactory', () => ({
 }));
 jest.mock('./src/components/rotator/AutoRotator', () => 'AutoRotator');
 jest.mock('./src/components/miniDetails/MiniDetails', () => 'MiniDetails');
-jest.mock('./src/livetv/channelTunerHandler', () => {});
 jest.mock('./src/components/RadioPicker', () => 'RadioPicker');
 jest.mock('./src/components/GradientButton', () => 'GradientButton');
 

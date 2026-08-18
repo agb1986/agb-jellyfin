@@ -1,8 +1,6 @@
-import { ContentLauncherStatusType } from '@amazon-devices/kepler-media-content-launcher';
 import { LinearGradientProps } from '@amazon-devices/react-linear-gradient';
 import { render } from '@testing-library/react-native';
 import React from 'react';
-import { EventRegister } from 'react-native-event-listeners';
 import { useDispatch } from 'react-redux';
 import { areComponentPropsEqual } from '../../src/utils/lodashHelper';
 
@@ -32,15 +30,6 @@ jest.mock('@amazon-devices/react-navigation__core', () => ({
   useIsFocused: jest.fn().mockReturnValue(true),
 }));
 
-jest.mock('@amazon-devices/kepler-media-content-launcher', () => ({
-  ContentLauncherServerComponent: jest
-    .fn()
-    .mockImplementation(() => mockContentLauncherServerComponent),
-  ContentLauncherStatusType: {
-    SUCCESS: 'SUCCESS',
-  },
-}));
-
 jest.mock('../../src/data/videos', () => ({
   DEFAULT_FILE_TYPE: 'video/mp4',
 }));
@@ -57,18 +46,6 @@ jest.mock('@amazon-devices/react-native-kepler', () => ({
     }),
   }),
 }));
-
-const mockContentLauncherServerComponent = {
-  makeLauncherResponseBuilder: jest.fn().mockReturnThis(),
-  contentLauncherStatus: jest.fn().mockReturnThis(),
-  build: jest.fn().mockReturnValue({
-    getContentLauncherStatus: jest
-      .fn()
-      .mockReturnValue(ContentLauncherStatusType.SUCCESS),
-  }),
-  getOrMakeServer: jest.fn().mockReturnThis(),
-  setHandler: jest.fn(),
-};
 
 const mockedNavigate = jest.fn();
 const mockedNavigation = {
@@ -109,28 +86,6 @@ describe('HomeScreen', () => {
     expect(toJSON()).toMatchSnapshot();
   });
 
-  it('registers event listener and handles event properly', () => {
-    const { unmount } = render(<HomeScreen {...props} />);
-    expect(EventRegister.addEventListener).toHaveBeenCalledWith(
-      'LiveChannelEvent',
-      expect.any(Function),
-    );
-    const eventHandler = (
-      EventRegister.addEventListener as unknown as jest.Mock
-    ).mock.calls[0][1];
-
-    const mockPayload = {
-      matchString: 'testChannel',
-      resolve: jest.fn(),
-      reject: jest.fn(),
-    };
-
-    eventHandler(mockPayload);
-    unmount();
-    expect(EventRegister.removeEventListener).toHaveBeenCalledWith(
-      'mockListenerId',
-    );
-  });
 });
 describe('HomeScreen with React.memo', () => {
   it('does not re-renders when props are unchanged', async () => {
@@ -165,73 +120,6 @@ describe('HomeScreen with touch optimized UX', () => {
   it('renders correctly and matches snapshot', () => {
     const { toJSON } = render(<HomeScreen {...props} />);
     expect(toJSON()).toMatchSnapshot();
-  });
-});
-
-describe('HomeScreen with touch optimized UX And Disabled Additional features', () => {
-  const ContentPersonalizationServer =
-    require('@amazon-devices/kepler-content-personalization').ContentPersonalizationServer;
-  const AccountLoginWrapperInstance =
-    require('../../src/AccountLoginWrapper').AccountLoginWrapperInstance;
-  const onStartService =
-    require('../../src/AccountLoginWrapper').onStartService;
-  const onStopService = require('../../src/AccountLoginWrapper').onStopService;
-
-  beforeEach(() => {
-    jest.mock('@amazon-devices/kepler-content-personalization', () => ({
-      __esModule: true,
-
-      ContentPersonalizationServer: jest.fn(),
-    }));
-
-    jest.mock('../../src/AccountLoginWrapper', () => ({
-      __esModule: true,
-
-      AccountLoginWrapperInstance: jest.fn(),
-      onStartService: jest.fn(),
-      onStopService: jest.fn(),
-    }));
-
-    jest
-      .spyOn(require('../../src/config/AppConfig'), 'isDpadControllerSupported')
-      .mockReturnValue(false);
-    jest
-      .spyOn(
-        require('../../src/config/AppConfig'),
-        'isContentPersonalizationEnabled',
-      )
-      .mockReturnValue(false);
-    jest
-      .spyOn(require('../../src/config/AppConfig'), 'isAccountLoginEnabled')
-      .mockReturnValue(false);
-
-    jest
-      .spyOn(require('../../src/config/AppConfig'), 'isChannelTuningV2Enabled')
-      .mockReturnValue(false);
-  });
-
-  afterEach(() => {
-    jest.clearAllMocks();
-  });
-
-  it('does not exercise content personalization features', () => {
-    render(<HomeScreen {...props} />);
-    expect(
-      ContentPersonalizationServer.reportRefreshedCustomerList,
-    ).toHaveBeenCalledTimes(0);
-    expect(
-      ContentPersonalizationServer.reportRefreshedContentEntitlements,
-    ).toHaveBeenCalledTimes(0);
-    expect(
-      ContentPersonalizationServer.reportRefreshedPlaybackEvents,
-    ).toHaveBeenCalledTimes(0);
-  });
-
-  it('does not exercise account login features', () => {
-    render(<HomeScreen {...props} />);
-    expect(AccountLoginWrapperInstance.updateStatus).toHaveBeenCalledTimes(0);
-    expect(onStartService).toHaveBeenCalledTimes(0);
-    expect(onStopService).toHaveBeenCalledTimes(0);
   });
 });
 

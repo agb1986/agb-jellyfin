@@ -5,7 +5,6 @@ import { describe } from '@jest/globals';
 import '@testing-library/jest-native/extend-expect';
 import { fireEvent, render } from '@testing-library/react-native';
 import React from 'react';
-import { consoleInfoSpy } from '../../../jest.setup';
 import { areComponentPropsEqual } from '../../../src/utils/lodashHelper';
 import { PLAYER_BUTTON_SIZE } from '../../../src/utils/videoPlayerValues';
 import PlaybackControls, {
@@ -15,13 +14,6 @@ import PlaybackControls, {
   throttling,
 } from '../../../src/w3cmedia/mediacontrols/PlaybackControls';
 import { PlayerControlType } from '../../../src/w3cmedia/mediacontrols/types/ControlBar';
-
-jest.mock('@amazon-devices/kepler-content-personalization', () => ({
-  __esModule: true,
-  ContentPersonalizationServer: {
-    reportNewPlaybackEvent: jest.fn(),
-  },
-}));
 
 jest.mock('@amazon-devices/react-native-device-info', () => ({
   getModel: jest.fn(() => 'simulator'),
@@ -124,21 +116,31 @@ describe('PlaybackControls onPress tests', () => {
 });
 
 describe('Check if functions called properly', () => {
+  // seekForward/seekBackward share a module-level throttle, so real timers plus
+  // a wait would be needed to press twice; assert both in one press each with
+  // the throttle window advanced between them.
+  beforeEach(() => {
+    jest.useFakeTimers();
+  });
+
+  afterEach(() => {
+    jest.advanceTimersByTime(1000);
+    jest.useRealTimers();
+  });
+
   it('Seek Backward onPress gets called properly', () => {
     jest.spyOn(React, 'useRef');
+    videoRef.current!.currentTime = 100;
     const { getByTestId } = render(renderPlaybackControls());
     fireEvent.press(getByTestId('player-btn-seek-backward'));
-    expect(consoleInfoSpy).toHaveBeenCalledWith(
-      'k_content_per: calling seekBackward',
-    );
+    expect(videoRef.current!.currentTime).toBe(90);
   });
 
   it('Seek Forward onPress gets called properly', () => {
+    videoRef.current!.currentTime = 100;
     const { getByTestId } = render(renderPlaybackControls());
     fireEvent.press(getByTestId('player-btn-seek-forward'));
-    expect(consoleInfoSpy).toHaveBeenCalledWith(
-      'k_content_per: calling seekForward',
-    );
+    expect(videoRef.current!.currentTime).toBe(110);
   });
 
   it('Seek Backward onBlur gets called properly', () => {

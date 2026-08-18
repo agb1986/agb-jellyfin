@@ -1,6 +1,6 @@
 import { RouteProp } from '@amazon-devices/react-navigation__core';
 import { StackNavigationProp } from '@amazon-devices/react-navigation__stack';
-import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
+import { act, fireEvent, render } from '@testing-library/react-native';
 import React from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import configureMockStore from 'redux-mock-store';
@@ -8,7 +8,6 @@ import {
   AppStackParamList,
   Screens,
 } from '../../src/components/navigation/types';
-import { IAPManager } from '../../src/iap/utils/IAPManager';
 import DetailsScreen from '../../src/screens/DetailsScreen';
 
 jest.mock('../../src/utils/translationHelper', () => ({
@@ -37,15 +36,6 @@ jest.mock('react-native', () => {
   return RN;
 });
 
-jest.mock('../../src/personalization/mock/ContentPersonalizationMocks', () => ({
-  __esModule: true,
-  getMockPlaybackEventForVideo: jest.fn(),
-  getMockContentEntitlement: jest.fn(),
-  getMockContentID: jest.fn(),
-  getMockContentInteraction: jest.fn(),
-  getMockCustomerListEntry: jest.fn(),
-}));
-
 const mockNavigation: any = {
   navigate: jest.fn(),
   goBack: jest.fn(),
@@ -69,9 +59,6 @@ const renderDetailsScreen = (route: any = mockRoute) => {
 };
 
 describe('Details Component', () => {
-  const ContentPersonalizationServer =
-    require('@amazon-devices/kepler-content-personalization').ContentPersonalizationServer;
-
   let store: any;
   let mockDispatch: any;
 
@@ -158,155 +145,5 @@ describe('Details Component', () => {
 
     const headerTitle = getByTestId('detail-header_title');
     expect(headerTitle.props.children).toBe('New Title');
-  });
-
-  it('should add to watchlist when ADD_TO_LIST button is pressed', async () => {
-    const { getByTestId } = render(renderDetailsScreen());
-    fireEvent.press(getByTestId('details-action-add-remove-btn'));
-    await waitFor(() => {
-      expect(
-        ContentPersonalizationServer.reportNewCustomerListEntry,
-      ).toHaveBeenCalled();
-    });
-  });
-
-  it('should handle add to watch list error', async () => {
-    const mockError = new Error('Test Error');
-    (
-      ContentPersonalizationServer.reportNewCustomerListEntry as jest.Mock
-    ).mockImplementationOnce(() => {
-      throw mockError;
-    });
-    console.error = jest.fn();
-    const { getByTestId } = render(renderDetailsScreen());
-    fireEvent.press(getByTestId('details-action-add-remove-btn'));
-    await waitFor(() => {
-      expect(console.error).toHaveBeenCalledWith(`k_content_per: ${mockError}`);
-    });
-  });
-
-  it('should remove from watchlist when REMOVE_FROM_LIST button is pressed', async () => {
-    const { getByTestId } = render(renderDetailsScreen());
-    fireEvent.press(getByTestId('details-action-add-remove-btn'));
-    fireEvent.press(getByTestId('details-action-add-remove-btn'));
-    await waitFor(() => {
-      expect(
-        ContentPersonalizationServer.reportRemovedCustomerListEntry,
-      ).toHaveBeenCalled();
-    });
-    expect(getByTestId('details-action-add-remove-btn')).toBeTruthy();
-  });
-
-  it('should handle remove from watchlist error', async () => {
-    const mockError = new Error('Test Error');
-    (
-      ContentPersonalizationServer.reportRemovedCustomerListEntry as jest.Mock
-    ).mockImplementationOnce(() => {
-      throw mockError;
-    });
-    console.error = jest.fn();
-    const { getByTestId } = render(renderDetailsScreen());
-    fireEvent.press(getByTestId('details-action-add-remove-btn'));
-    fireEvent.press(getByTestId('details-action-add-remove-btn'));
-    await waitFor(() => {
-      expect(console.error).toHaveBeenCalledWith(`k_content_per: ${mockError}`);
-    });
-  });
-
-  it('should purchase subscription when Purchase Subscription button is pressed', async () => {
-    const { getByTestId } = render(renderDetailsScreen());
-    fireEvent.press(
-      getByTestId('details-action-purchase-remove-subscription-btn'),
-    );
-    await waitFor(() => {
-      expect(IAPManager.triggerPurchase).toHaveBeenCalledWith(
-        expect.any(String),
-      );
-    });
-  });
-
-  it('should rent movie when Rent button is pressed', async () => {
-    const { getByTestId } = render(renderDetailsScreen());
-    fireEvent.press(getByTestId('details-action-rent-remove-btn'));
-    await waitFor(() => {
-      expect(IAPManager.triggerPurchase).toHaveBeenCalledWith(
-        expect.any(String),
-      );
-    });
-  });
-
-  it('should handle rent movie error', async () => {
-    const mockError = new Error('Test Error');
-    (
-      ContentPersonalizationServer.reportNewContentEntitlement as jest.Mock
-    ).mockImplementationOnce(() => {
-      throw mockError;
-    });
-    console.error = jest.fn();
-    const { getByTestId } = render(renderDetailsScreen());
-    fireEvent.press(getByTestId('details-action-rent-remove-btn'));
-    await waitFor(() => {
-      expect(console.error).toHaveBeenCalledWith(`k_content_per: ${mockError}`);
-    });
-  });
-
-  it('should remove rental when Remove Rental button is pressed', async () => {
-    const { getByTestId } = render(renderDetailsScreen());
-    fireEvent.press(getByTestId('details-action-rent-remove-btn'));
-    fireEvent.press(getByTestId('details-action-rent-remove-btn'));
-    await waitFor(() => {
-      expect(
-        ContentPersonalizationServer.reportRemovedContentEntitlement,
-      ).toHaveBeenCalled();
-    });
-  });
-
-  it('should handle remove rent error', async () => {
-    const mockError = new Error('Test Error');
-    (
-      ContentPersonalizationServer.reportRemovedContentEntitlement as jest.Mock
-    ).mockImplementationOnce(() => {
-      throw mockError;
-    });
-    console.error = jest.fn();
-    const { getByTestId } = render(renderDetailsScreen());
-    fireEvent.press(getByTestId('details-action-rent-remove-btn'));
-    fireEvent.press(getByTestId('details-action-rent-remove-btn'));
-    await waitFor(() => {
-      expect(console.error).toHaveBeenCalledWith(`k_content_per: ${mockError}`);
-    });
-  });
-
-  it('should handle Navigate Player error', async () => {
-    const mockError = new Error('Test Error');
-    (
-      ContentPersonalizationServer.reportNewContentInteraction as jest.Mock
-    ).mockImplementationOnce(() => {
-      throw mockError;
-    });
-    console.error = jest.fn();
-    const { getByTestId } = render(renderDetailsScreen());
-    fireEvent.press(getByTestId('details-action-play-movie-btn'));
-    await waitFor(() => {
-      expect(console.error).toHaveBeenCalledWith(`k_content_per: ${mockError}`);
-    });
-  });
-
-  it('should not report to watchlist when ContentPersonalization is not enabled', async () => {
-    jest.mock('../../src/config/AppConfig', () => ({
-      isContentPersonalizationEnabled: jest.fn(() => false),
-      isInAppPurchaseEnabled: jest.fn(() => false),
-    }));
-    render(renderDetailsScreen());
-    await waitFor(() => {
-      expect(
-        ContentPersonalizationServer.reportNewCustomerListEntry,
-      ).not.toHaveBeenCalled();
-    });
-    await waitFor(() => {
-      expect(
-        ContentPersonalizationServer.reportRemovedCustomerListEntry,
-      ).not.toHaveBeenCalled();
-    });
   });
 });

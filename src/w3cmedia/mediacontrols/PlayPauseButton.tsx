@@ -1,12 +1,6 @@
-import {
-  ContentPersonalizationServer,
-  PlaybackState,
-} from '@amazon-devices/kepler-content-personalization';
 import { VideoPlayer } from '@amazon-devices/react-native-w3cmedia';
 import React, { useCallback, useEffect, useState } from 'react';
 import { TouchableOpacity } from 'react-native';
-import { isContentPersonalizationEnabled } from '../../config/AppConfig';
-import { getMockPlaybackEventForVideo } from '../../personalization/mock/ContentPersonalizationMocks';
 import PlayerButton from './PlayerButton';
 
 export interface PlayPauseButtonProps {
@@ -62,48 +56,12 @@ const PlayPauseButton = React.forwardRef(
 
     const pause = useCallback(() => {
       videoRef?.current?.pause();
-
-      try {
-        if (isContentPersonalizationEnabled()) {
-          console.info('k_content_per: Creating playbackEvent object in pause');
-          const playbackEvent = getMockPlaybackEventForVideo(
-            videoRef,
-            videoRef.current!.currentSrc,
-            PlaybackState.PAUSED,
-          );
-          ContentPersonalizationServer.reportNewPlaybackEvent(playbackEvent);
-          console.log(
-            `k_content_per: Pause : Reporting new playback event :${JSON.stringify(
-              playbackEvent,
-            )}`,
-          );
-        }
-      } catch (e) {
-        console.error(`k_content_per: ${e}`);
-      }
     }, [videoRef]);
 
     const play = useCallback(() => {
       videoRef?.current?.play();
-      try {
-        if (isContentPersonalizationEnabled()) {
-          console.info('k_content_per: Creating playbackEvent object in play');
-          const playbackEvent = getMockPlaybackEventForVideo(
-            videoRef,
-            videoRef.current!.currentSrc,
-            PlaybackState.PLAYING,
-          );
-          ContentPersonalizationServer.reportNewPlaybackEvent(playbackEvent);
-          console.log(
-            `k_content_per: Play: Reporting new playback event : ${JSON.stringify(
-              playbackEvent,
-            )}`,
-          );
-        }
-      } catch (e) {
-        console.error(`k_content_per: ${e}`);
-      }
     }, [videoRef]);
+
     return (
       <PlayerButton
         onPress={playing ? pause : play}

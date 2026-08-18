@@ -1,8 +1,3 @@
-import {
-  ContentPersonalizationServer,
-  IPlaybackEvent,
-  PlaybackState,
-} from '@amazon-devices/kepler-content-personalization';
 import LinearGradient from '@amazon-devices/react-linear-gradient';
 import {
   HWEvent,
@@ -12,12 +7,8 @@ import { VideoPlayer } from '@amazon-devices/react-native-w3cmedia';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Platform, StyleSheet, View } from 'react-native';
 import Seekbar from '../../components/Seekbar';
-import {
-  isContentPersonalizationEnabled,
-  isRunningOnAutomotive,
-} from '../../config/AppConfig';
+import { isRunningOnAutomotive } from '../../config/AppConfig';
 import { DPADEventType, EVENT_KEY_DOWN } from '../../constants';
-import { getMockPlaybackEventForVideo } from '../../personalization/mock/ContentPersonalizationMocks';
 import { FrameImageSource } from '../../services/bif/FrameImageSource';
 import { COLORS } from '../../styles/Colors';
 import { TitleData } from '../../types/TitleData';
@@ -95,7 +86,6 @@ export const VideoPlayerUI = React.memo(
       }
 
       if (evt && evt.eventKeyAction === EVENT_KEY_DOWN) {
-        let playbackEvent: IPlaybackEvent | undefined;
         setPlayerControlType(evt.eventType);
 
         if (!captionMenuVisibility) {
@@ -105,73 +95,24 @@ export const VideoPlayerUI = React.memo(
         }
 
         if (videoRef.current) {
-          try {
-            switch (evt.eventType) {
-              case DPADEventType.PLAY:
-              case DPADEventType.SKIPFORWARD:
-              case DPADEventType.SKIPBACKWARD:
-                console.info(`k_content_per: VideoPlayerUI : ${evt.eventType}`);
-                playbackEvent = getMockPlaybackEventForVideo(
-                  videoRef,
-                  videoRef.current!.currentSrc,
-                  PlaybackState.PLAYING,
-                );
-                break;
-
-              case DPADEventType.PAUSE:
-                console.info(
-                  '[VideoPlayer.tsx] -DPADEventType.PAUSE -  k_content_per: VideoPlayerUI : pause',
-                );
-                playbackEvent = getMockPlaybackEventForVideo(
-                  videoRef,
-                  videoRef.current!.currentSrc,
-                  PlaybackState.PAUSED,
-                );
-                break;
-
-              case DPADEventType.PLAYPAUSE: {
-                console.info('k_content_per: VideoPlayerUI : playpause');
-                const isVideoPaused = videoRef.current.paused;
-
-                playbackEvent = getMockPlaybackEventForVideo(
-                  videoRef,
-                  videoRef.current!.currentSrc,
-                  isVideoPaused ? PlaybackState.PLAYING : PlaybackState.PAUSED,
-                );
-                break;
+          switch (evt.eventType) {
+            case DPADEventType.BACK: {
+              console.info('[VideoPlayerUI.tsx]: VideoPlayerUI : back');
+              if (captionMenuVisibility) {
+                setCaptionMenuVisibility(false);
               }
-
-              case DPADEventType.BACK: {
-                console.info('[VideoPlayerUI.tsx]: VideoPlayerUI : back');
-                if (captionMenuVisibility) {
-                  setCaptionMenuVisibility(false);
-                }
-                setCaptionStatus(captionMenuVisibility);
-                setCaptionButtonFocused(captionMenuVisibility);
-                break;
-              }
-
-              case DPADEventType.SELECT: {
-                console.info('k_content_per: VideoPlayerUI : select');
-                // pause video
-                if (!showMediaControls) {
-                  playPauseVideo();
-                }
-                break;
-              }
+              setCaptionStatus(captionMenuVisibility);
+              setCaptionButtonFocused(captionMenuVisibility);
+              break;
             }
-          } catch (e) {
-            console.error(`k_content_per: ${e}`);
-          }
-        }
-        if (playbackEvent) {
-          if (isContentPersonalizationEnabled()) {
-            console.log(
-              `k_content_per: useTvEventHandler: Reporting new playback event : ${JSON.stringify(
-                playbackEvent,
-              )}`,
-            );
-            ContentPersonalizationServer.reportNewPlaybackEvent(playbackEvent);
+
+            case DPADEventType.SELECT: {
+              // pause video
+              if (!showMediaControls) {
+                playPauseVideo();
+              }
+              break;
+            }
           }
         }
       }

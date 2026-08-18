@@ -1,10 +1,6 @@
 // Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 // SPDX-License-Identifier: MIT-0
 
-import {
-  IChangeChannelResponse,
-  OperationError,
-} from '@amazon-devices/kepler-channel';
 import { DrawerScreenProps } from '@amazon-devices/react-navigation__drawer/lib/typescript/src/types';
 import { StackNavigationProp } from '@amazon-devices/react-navigation__stack';
 import { StackScreenProps } from '@amazon-devices/react-navigation__stack/lib/typescript/src/types';
@@ -52,8 +48,6 @@ export type AppStackParamList = {
   [Screens.PLAYER_SCREEN]: {
     data: TitleData;
     focusId?: number | string;
-    onChannelTuneSuccess?: (response: IChangeChannelResponse) => void;
-    onChannelTuneFailed?: (error: OperationError) => void;
   };
 };
 
@@ -87,11 +81,4 @@ export interface ButtonConfig {
   label: string;
   ref?: React.RefObject<React.ComponentRef<typeof TouchableOpacity>>;
   testID: string;
-}
-
-export interface LiveChannelEventPayload {
-  matchString?: string;
-  channelCount?: number;
-  onChannelTuneSuccess: (response: IChangeChannelResponse) => void;
-  onChannelTuneFailed: (error: OperationError) => void;
 }

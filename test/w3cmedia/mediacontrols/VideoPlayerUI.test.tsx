@@ -3,9 +3,7 @@ import { VideoPlayer } from '@amazon-devices/react-native-w3cmedia';
 import { render, waitFor } from '@testing-library/react-native';
 import React from 'react';
 import 'react-native';
-import { consoleInfoSpy } from '../../../jest.setup';
 import { DPADEventType } from '../../../src/constants';
-import { getMockPlaybackEventForVideo } from '../../../src/personalization/mock/ContentPersonalizationMocks';
 import { BifFrameImageSource } from '../../../src/services/bif/BifFrameImageSource';
 import { FrameImageSource } from '../../../src/services/bif/FrameImageSource';
 import { TitleData } from '../../../src/types/TitleData';
@@ -13,11 +11,6 @@ import { areComponentPropsEqual } from '../../../src/utils/lodashHelper';
 import { useMediaControls } from '../../../src/w3cmedia/mediacontrols/types/useMediaControls';
 import VideoPlayerUI from '../../../src/w3cmedia/mediacontrols/VideoPlayerUI';
 import { asMock } from '../../common/testsHelper';
-
-jest.mock('@amazon-devices/kepler-content-personalization', () => ({
-  __esModule: true,
-  ContentPersonalizationServer: jest.fn(),
-}));
 
 jest.mock('../../../src/w3cmedia/mediacontrols/types/useMediaControls', () => {
   return {
@@ -212,91 +205,11 @@ describe('PlayerScreen hooks', () => {
     mockUseTVEventHandler = asMock(useTVEventHandler).mock.calls[0][0];
   });
 
-  test('useTVEventHandler called with TV and DPADEventType.PLAYPAUSE with pause', async () => {
-    videoRef = {
-      current: {
-        ...videoRef.current,
-        paused: true,
-      } as unknown as VideoPlayer,
-    };
-    render(renderVideoPlayerUI(videoRef));
-    mockUseTVEventHandler({
-      eventKeyAction: 0,
-      eventType: DPADEventType.PLAYPAUSE,
-    });
 
-    expect(videoRef?.current?.paused).toBeTruthy();
-    expect(getMockPlaybackEventForVideo).toBeDefined();
-    expect(consoleInfoSpy).toHaveBeenCalledWith(
-      'k_content_per: VideoPlayerUI : playpause',
-    );
-  });
 
-  test('useTVEventHandler called with TV and DPADEventType.PLAYPAUSE without pause', async () => {
-    videoRef = {
-      current: {
-        ...videoRef.current,
-        paused: false,
-      } as unknown as VideoPlayer,
-    };
-    render(renderVideoPlayerUI());
-    mockUseTVEventHandler({
-      eventKeyAction: 0,
-      eventType: DPADEventType.PLAYPAUSE,
-    });
 
-    expect(videoRef?.current?.paused).not.toBeTruthy();
-    expect(getMockPlaybackEventForVideo).toBeDefined();
-    expect(consoleInfoSpy).toHaveBeenCalledWith(
-      'k_content_per: VideoPlayerUI : playpause',
-    );
-  });
 
-  test('useTVEventHandler called with TV and DPADEventType.PLAY', async () => {
-    mockUseTVEventHandler({
-      eventKeyAction: 0,
-      eventType: DPADEventType.PLAY,
-    });
-    expect(videoRef?.current?.paused).not.toBeTruthy();
-    expect(getMockPlaybackEventForVideo).toBeDefined();
-    expect(consoleInfoSpy).toHaveBeenCalledWith(
-      'k_content_per: VideoPlayerUI : play',
-    );
-  });
 
-  test('useTVEventHandler called with TV and DPADEventType.PAUSE', async () => {
-    mockUseTVEventHandler({
-      eventKeyAction: 0,
-      eventType: DPADEventType.PAUSE,
-    });
-    expect(videoRef?.current?.paused).not.toBeTruthy();
-    expect(getMockPlaybackEventForVideo).toBeDefined();
-    expect(consoleInfoSpy).toHaveBeenCalled();
-  });
-
-  test('useTVEventHandler called with TV and DPADEventType.SKIPFORWARD', async () => {
-    mockUseTVEventHandler({
-      eventKeyAction: 0,
-      eventType: DPADEventType.SKIPFORWARD,
-    });
-    expect(videoRef?.current?.paused).not.toBeTruthy();
-    expect(getMockPlaybackEventForVideo).toBeDefined();
-    expect(consoleInfoSpy).toHaveBeenCalledWith(
-      'k_content_per: VideoPlayerUI : skip_forward',
-    );
-  });
-
-  test('useTVEventHandler called with TV and DPADEventType.SKIPBACKWARD', async () => {
-    mockUseTVEventHandler({
-      eventKeyAction: 0,
-      eventType: DPADEventType.SKIPBACKWARD,
-    });
-    expect(videoRef?.current?.paused).not.toBeTruthy();
-    expect(getMockPlaybackEventForVideo).toBeDefined();
-    expect(consoleInfoSpy).toHaveBeenCalledWith(
-      'k_content_per: VideoPlayerUI : skip_backward',
-    );
-  });
 
   test('useTVEventHandler called with TV and DPADEventType.BACK', async () => {
     videoRef = {

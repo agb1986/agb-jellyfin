@@ -12,53 +12,25 @@
  * and account management.
  */
 
-// Kepler Channel Services - Handle live TV channel functionality
-import { ChannelServerComponent2 } from '@amazon-devices/kepler-channel';
-
-// Content Personalization - Manages user preferences and recommendations
-import {
-  ContentPersonalizationServer,
-  CustomerListType,
-} from '@amazon-devices/kepler-content-personalization';
-import {
-  ContentLauncherServerComponent,
-  ContentLauncherStatusType,
-  IContentLauncherHandler,
-  IContentSearch,
-  ILaunchContentOptionalFields,
-  ILauncherResponse,
-} from '@amazon-devices/kepler-media-content-launcher';
-import {
-  IComponentInstance,
-  IKeplerAppStateManager,
-  useKeplerAppStateManager,
-} from '@amazon-devices/react-native-kepler';
 import {
   useFocusEffect,
   useIsFocused,
 } from '@amazon-devices/react-navigation__core';
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 // Event handling for live channel events
-import { EventRegister } from 'react-native-event-listeners';
 
 // Redux state management
 import { useDispatch, useSelector } from 'react-redux';
 
 // Account login functionality
-import {
-  AccountLoginWrapperInstance,
-  onStartService as onStartAccountLoginService,
-  onStopService as onStopAccountLoginService,
-} from '../AccountLoginWrapper';
 
 // UI Components
 import ContentPreview from '../components/ContentPreview';
 import MovieGrid from '../components/MovieGrid';
 import {
   AppStackScreenProps,
-  LiveChannelEventPayload,
   Screens,
 } from '../components/navigation/types';
 import { OptionType } from '../components/RadioPicker';
@@ -67,13 +39,10 @@ import { MovieRotatorGrid } from '../components/touchOptimized/MovieRotatorGrid'
 
 // Configuration and feature flags
 import {
-  isAccountLoginEnabled,
-  isContentPersonalizationEnabled,
   isDpadControllerSupported,
 } from '../config/AppConfig';
 
 // Constants and data sources
-import { LoginStatus } from '../constants';
 import { getClassics } from '../data/local/classics';
 import { getLatestHits } from '../data/local/latestHits';
 import { getNewHits } from '../data/local/newHits';
@@ -81,11 +50,8 @@ import { getPremiumCollection } from '../data/local/premiumCollection';
 import { getRecommendations } from '../data/local/recommendations';
 import { getRotator } from '../data/local/rotator';
 import { getTrends } from '../data/local/trends';
-import { tileData } from '../data/tileData';
 
 // Live TV functionality
-import channelTunerHandler from '../livetv/channelTunerHandler';
-import { getMockedCurrentTitleDataForChannel } from '../livetv/mock/MockSource';
 
 // Redux store slices
 import { setCurrentFocus } from '../store/focus/focusSlice';
@@ -159,9 +125,7 @@ interface HomeProps {
  * - D-pad mode: Shows content preview area + movie grid
  * - Touch mode: Shows combined rotator + movie grid that scrolls together
  */
-const HomeScreen = ({
-  navigation,
-}: AppStackScreenProps<Screens.HOME_SCREEN>) => {
+const HomeScreen = ({}: AppStackScreenProps<Screens.HOME_SCREEN>) => {
   // Redux hooks for state management
   const dispatch = useDispatch();
   const countryCode = useSelector(settingsSelectors.countryCode);
@@ -174,12 +138,6 @@ const HomeScreen = ({
   // Reference to the first tile for focus management
   const firstTileRef = React.useRef<any>(null);
 
-  // Event listener reference for cleanup
-  let listener: string | boolean;
-
-  // Delay before navigating to player screen (allows for smooth transitions)
-  const NAVIGATION_DELAY = 700;
-
   // Initialize country code from locale if not already set
   if (!countryCode) {
     const selectedLocale = getSelectedLocale();
@@ -187,22 +145,6 @@ const HomeScreen = ({
       dispatch(setCountryCode(selectedLocale as OptionType));
     }
   }
-
-  /**
-   * Refreshes the customer's watchlist data for personalization
-   * Only executes if content personalization feature is enabled
-   */
-  const callCustomerListRefresh = () => {
-    if (!isContentPersonalizationEnabled()) {
-      return;
-    }
-    console.log(
-      '[ HomeScreen.tsx ] - callCustomerListRefresh - k_content_per: Calling Report Refreshed Customer List',
-    );
-    ContentPersonalizationServer.reportRefreshedCustomerList(
-      CustomerListType.WATCHLIST,
-    );
-  };
 
   // Hook to track if this screen is currently focused/active
   const isFocused = useIsFocused();
@@ -233,76 +175,6 @@ const HomeScreen = ({
   );
 
   /**
-   * Refreshes content entitlements data for personalization
-   * This updates what content the user has access to view
-   */
-  const callContentEntitlementsRefresh = useCallback(() => {
-    if (!isContentPersonalizationEnabled()) {
-      return;
-    }
-    console.log(
-      '[ HomeScreen.tsx ] - callContentEntitlementsRefresh - k_content_per: Calling Report Refreshed Content Entitlements',
-    );
-    ContentPersonalizationServer.reportRefreshedContentEntitlements();
-  }, []);
-
-  /**
-   * Refreshes playback events data for personalization
-   * This updates the user's viewing history and preferences
-   */
-  const callPlaybackEventsRefresh = useCallback(() => {
-    if (!isContentPersonalizationEnabled()) {
-      return;
-    }
-    console.log(
-      '[ HomeScreen.tsx ] - callPlaybackEventsRefresh - k_content_per: Calling Report Refreshed PlaybackEvents',
-    );
-    ContentPersonalizationServer.reportRefreshedPlaybackEvents();
-  }, []);
-
-  /**
-   * Navigates to the player screen with optional live channel data
-   *
-   * @param payload - Optional live channel event data containing channel info
-   *
-   * Process:
-   * 1. Waits for NAVIGATION_DELAY to ensure smooth transition
-   * 2. Gets mocked EPG data for the channel (if live TV)
-   * 3. Combines tile data with channel data
-   * 4. Navigates to player screen with the combined data
-   * 5. Records analytics event for the navigation
-   */
-  const navigateToPlayer = useCallback(
-    (payload?: LiveChannelEventPayload) => {
-      setTimeout(async () => {
-        // Try to match the changeChannelResponseData with a specific EPG program
-        const mockedData = await getMockedCurrentTitleDataForChannel(
-          payload?.matchString ?? '',
-        );
-
-        // Combine base tile data with channel-specific data
-        const videoData = { ...tileData, ...mockedData };
-
-        // Prepare navigation parameters
-        const params = {
-          data: videoData,
-          onChannelTuneSuccess: payload?.onChannelTuneSuccess,
-          onChannelTuneFailed: payload?.onChannelTuneFailed,
-        };
-
-        try {
-          // Navigate to player screen
-          navigation.navigate(Screens.PLAYER_SCREEN, params);
-        } catch {
-          // If navigation fails, go back to previous screen
-          navigation.goBack();
-        }
-      }, NAVIGATION_DELAY); // Delay simulates loading time for smooth UX
-    },
-    [navigation],
-  );
-
-  /**
    * Callback function triggered when a movie tile receives focus
    * Updates the selected title state to show content preview
    *
@@ -322,189 +194,6 @@ const HomeScreen = ({
   const setFocusDestinationFromRotator = () => {
     firstTileRef?.current?.requestTVFocus();
   };
-  const keplerAppStateManager: IKeplerAppStateManager =
-    useKeplerAppStateManager();
-  // Get component instance for Kepler services integration
-  const componentInstance: IComponentInstance =
-    keplerAppStateManager.getComponentInstance();
-
-  /**
-   * Effect: Initialize channel tuning and personalization services
-   *
-   * Sets up:
-   * 1. Channel tuning handler
-   * 2. Content personalization data refresh
-   *
-   * Note: ChannelServerComponent2 API is not supported in Simulator
-   */
-  useEffect(() => {
-    // Use v2 channel server with component instance
-    ChannelServerComponent2.getOrMakeServer().setHandlerForComponent(
-      channelTunerHandler,
-      componentInstance,
-    );
-
-    // Initialize personalization data
-    callCustomerListRefresh();
-    callContentEntitlementsRefresh();
-    callPlaybackEventsRefresh();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  /**
-   * Effect: Setup content launcher and live channel event handling
-   *
-   * Configures:
-   * 1. Content launcher handler for external content launch requests
-   * 2. Live channel event listener for channel tuning
-   *
-   * The content launcher allows external systems to launch content in the app
-   */
-  useEffect(() => {
-    const factory = new ContentLauncherServerComponent();
-
-    /**
-     * Content launcher handler - processes external content launch requests
-     *
-     * @param contentSearch - Search parameters for the content to launch
-     * @param autoPlay - Whether to start playing immediately (quickplay) or show details
-     * @param _optionalFields - Additional optional launch parameters
-     * @returns Promise with launcher response indicating success/failure
-     */
-    const contentLauncherHandler: IContentLauncherHandler = {
-      async handleLaunchContent(
-        contentSearch: IContentSearch,
-        autoPlay: boolean,
-        _optionalFields: ILaunchContentOptionalFields,
-      ): Promise<ILauncherResponse> {
-        console.log(
-          '[ HomeScreen.tsx ] - HeadlessLaunchContentHandler handleLaunchContent invoked.',
-        );
-        console.log('LaunchContentHandler handleLaunchContent invoked.');
-
-        // Parse and log search parameters for debugging
-        let searchParameters = contentSearch.getParameterList();
-        if (searchParameters.length > 0) {
-          console.log(
-            `[ HomeScreen.tsx ] - Content Launcher: Search param List Length: ${searchParameters.length}`,
-          );
-
-          let searchString = '';
-          // Iterate through search parameters
-          for (var j = 0; j < searchParameters.length; j++) {
-            let additionalInfoList = searchParameters[j].getExternalIdList();
-            console.log(
-              `[ HomeScreen.tsx ] - Content Launcher: additionalInfoList.length : ${additionalInfoList.length}`,
-            );
-
-            // Build search string from external IDs
-            for (var i = 0; i < additionalInfoList.length; i++) {
-              searchString += '\n';
-              searchString += additionalInfoList[i].getName();
-              searchString += ' : ';
-              searchString += additionalInfoList[i].getValue();
-              console.log(
-                `[ HomeScreen.tsx ] -  Content Launcher: Search Str in additionalInfoList  ${i} : ${searchString}`,
-              );
-            }
-            searchString += '\n\n';
-            console.log(
-              `[ HomeScreen.tsx ] -  Content Launcher: Final Search str ${searchString}`,
-            );
-          }
-
-          // Log launch type (quickplay vs in-app search)
-          console.log(
-            '[ HomeScreen.tsx ] -  Content Launcher: Going to tell launch type',
-          );
-          if (autoPlay) {
-            console.log(
-              `[ HomeScreen.tsx ] -  Content Launcher: Quickplay ${searchString}`,
-            );
-          } else {
-            console.log(
-              `[ HomeScreen.tsx ] -  Content Launcher: In-App search ${searchString}`,
-            );
-          }
-        } else {
-          console.log(
-            '[ HomeScreen.tsx ] -  Content Launcher: Error fetching search string',
-          );
-        }
-
-        console.log(
-          '[ HomeScreen.tsx ] -  HeadlessLaunchContentHandler handleLaunchContent invoked.',
-        );
-
-        // Build successful response
-        const launcherResponse = factory
-          .makeLauncherResponseBuilder()
-          .contentLauncherStatus(ContentLauncherStatusType.SUCCESS)
-          .build();
-
-        // Navigate to player if launch was successful
-        if (
-          launcherResponse.getContentLauncherStatus() ===
-          ContentLauncherStatusType.SUCCESS
-        ) {
-          navigateToPlayer();
-        }
-        return Promise.resolve(launcherResponse);
-      },
-    };
-
-    // Set up the content launcher server with our handler
-    const contentLauncherServer = factory.getOrMakeServer();
-    contentLauncherServer.setHandler(contentLauncherHandler);
-
-    // Register listener for live channel events
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    listener = EventRegister.addEventListener(
-      'LiveChannelEvent',
-      navigateToPlayer,
-    );
-
-    // Cleanup function - remove event listener when component unmounts
-    return () => {
-      EventRegister.removeEventListener(listener as string);
-    };
-  }, []);
-
-  /**
-   * Effect: Initialize account login service if enabled
-   *
-   * Manages the account login wrapper service lifecycle:
-   * 1. Starts the service when component mounts
-   * 2. Sets initial login status to signed in
-   * 3. Stops the service when component unmounts
-   */
-  useEffect(() => {
-    // Only run if account login feature is enabled
-    if (!isAccountLoginEnabled()) {
-      return;
-    }
-
-    /**
-     * Async function to start the account login service
-     * Sets up authentication and updates login status
-     */
-    const startAccountLoginInstance = async () => {
-      console.info('AccountLoginWrapper - Home Screen: Start service');
-      await onStartAccountLoginService(componentInstance);
-      AccountLoginWrapperInstance.updateStatus(LoginStatus.SIGNED_IN);
-    };
-
-    // Start the account login service
-    startAccountLoginInstance();
-
-    // Cleanup function - stop the service when component unmounts
-    return () => {
-      console.info('AccountLoginWrapper - Home Screen: Stop service');
-      onStopAccountLoginService();
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
   /**
    * TOUCH MODE LAYOUT
    *

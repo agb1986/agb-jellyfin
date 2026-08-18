@@ -1,6 +1,6 @@
 jest.unmock('../../src/config/AppConfig');
 import { Platform } from 'react-native';
-import { isContentPersonalizationEnabled } from './../../src/config/AppConfig';
+import { isRunningOnTVSimulator } from './../../src/config/AppConfig';
 jest.mock('react-native', () => ({
   Platform: {
     isTV: false,
@@ -21,8 +21,8 @@ describe('AppConfig', () => {
     beforeEach(() => {
       Platform.isTV = true;
     });
-    test('should not be enable content personalization, since its Tv but is emulator', () => {
-      expect(isContentPersonalizationEnabled()).toBe(false);
+    test('detects the TV simulator from the device model', () => {
+      expect(isRunningOnTVSimulator()).toBe(false);
     });
   });
 });

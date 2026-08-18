@@ -15,28 +15,10 @@ jestGlobals.mock('../../src/components/navigation/AppStack', () => ({
   Screen: { DETAILS_SCREEN: 'detail-screen' },
 }));
 
-jestGlobals.mock(
-  '../../src/personalization/mock/ContentPersonalizationMocks',
-  () => ({
-    __esModule: true,
-
-    getMockContentID: jest.fn(),
-    getMockContentInteraction: jest.fn(),
-  }),
-);
-
 jestGlobals.mock('@amazon-devices/react-navigation__native', () => ({
   __esModule: true,
 
   useNavigation: jest.fn(),
-}));
-
-jestGlobals.mock('@amazon-devices/kepler-content-personalization', () => ({
-  __esModule: true,
-
-  ContentPersonalizationServer: jest.fn(),
-  ContentInteractionType: jest.fn(),
-  ContentIdNamespaces: jest.fn(),
 }));
 
 const createVideoTitle = (

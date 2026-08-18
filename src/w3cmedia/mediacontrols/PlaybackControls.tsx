@@ -1,12 +1,6 @@
-import {
-  ContentPersonalizationServer,
-  PlaybackState,
-} from '@amazon-devices/kepler-content-personalization';
 import { VideoPlayer } from '@amazon-devices/react-native-w3cmedia';
 import React, { useCallback, useEffect, useRef } from 'react';
 import { StyleSheet, TouchableOpacity, View } from 'react-native';
-import { isContentPersonalizationEnabled } from '../../config/AppConfig';
-import { getMockPlaybackEventForVideo } from '../../personalization/mock/ContentPersonalizationMocks';
 import { areComponentPropsEqual } from '../../utils/lodashHelper';
 import { PLAYER_BUTTON_SIZE } from '../../utils/videoPlayerValues';
 import PlayerButton from './PlayerButton';
@@ -79,51 +73,15 @@ const PlaybackControls = ({ videoRef }: PlaybackControlsProps) => {
   }, []);
 
   const handleSeekBackward = useCallback(() => {
-    console.info('k_content_per: calling seekBackward');
     throttleSeek(() => {
       seekBackward(videoRef);
     }, 500);
-    try {
-      if (isContentPersonalizationEnabled()) {
-        const playbackEvent = getMockPlaybackEventForVideo(
-          videoRef,
-          videoRef.current!.currentSrc,
-          PlaybackState.PLAYING,
-        );
-        ContentPersonalizationServer.reportNewPlaybackEvent(playbackEvent);
-        console.log(
-          `k_content_per: Seek Backwards : Reporting new playback event : ${JSON.stringify(
-            playbackEvent,
-          )}`,
-        );
-      }
-    } catch (e) {
-      console.error(`k_content_per: ${e}`);
-    }
   }, [videoRef]);
 
   const handleSeekForward = useCallback(() => {
-    console.info('k_content_per: calling seekForward');
     throttleSeek(() => {
       seekForward(videoRef);
     }, 500);
-    try {
-      if (isContentPersonalizationEnabled()) {
-        const playbackEvent = getMockPlaybackEventForVideo(
-          videoRef,
-          videoRef.current!.currentSrc,
-          PlaybackState.PLAYING,
-        );
-        ContentPersonalizationServer.reportNewPlaybackEvent(playbackEvent);
-        console.log(
-          `k_content_per: Seek Forwards : Reporting new playback event : ${JSON.stringify(
-            playbackEvent,
-          )}`,
-        );
-      }
-    } catch (e) {
-      console.error(`k_content_per: ${e}`);
-    }
   }, [videoRef]);
   return (
     <View style={styles.playbackControls}>

@@ -46,10 +46,6 @@ jest.mock('react-redux', () => ({
   useDispatch: jest.fn(() => jest.fn()),
   useSelector: jest.fn(() => false),
 }));
-jest.mock('../../src/config/AppConfig', () => ({
-  isAccountLoginEnabled: jest.fn(() => true),
-}));
-
 // Mock the useDeviceInfo hook
 jest.mock('../../src/utils/useDeviceInfo', () => ({
   useDeviceInfo: jest.fn(() => ({
