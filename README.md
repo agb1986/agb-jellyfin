@@ -105,10 +105,47 @@ with an injected `fetchImpl` — there is no network in the suite.
 |---|---|
 | `JellyfinHttp` | transport: base URL, `Authorization` header, query building, timeouts, typed errors |
 | `JellyfinClient` | the endpoints — system info, library, `PlaybackInfo`, playback reporting |
+| `JellyfinSession` | ties the client to what persists: device identity and credentials |
 | `quickConnect` | the device-code sign-in flow, including the polling loop |
 | `deviceProfile` | the DeviceProfile sent with `PlaybackInfo` |
 | `authorization` | builds the `MediaBrowser` header |
 | `errors` | network / timeout / API failures as distinct types |
+| `storage/` | the `KeyValueStore` seam, device id, credential record, AsyncStorage adapter |
+
+`storage/asyncStorage` is the only file here that imports React Native, and it
+is deliberately kept off the barrel export — that is what lets everything else
+be imported and tested under plain Node. The app wires it in:
+
+```ts
+const session = await JellyfinSession.create({
+  store: asyncKeyValueStore,
+  clientInfo: { name: 'Jellyfin Vega', version: '0.1.0' },
+  deviceName: 'Living Room',
+  serverUrl: getDevServerUrl(),   // only used when nothing is stored yet
+});
+
+if (!(await session.verify())) {
+  const { code } = await session.beginSignIn();   // show `code` on screen
+  await session.completeSignIn(secret);
+}
+```
+
+### Device identity and credentials
+
+The **device id** is generated once, persisted, and never cleared — not even on
+sign-out. Jellyfin keys sessions, resume points and token revocation off it, so
+a stick that regenerates it looks like a new device every launch and fills the
+dashboard with orphans. It must also differ between sticks, which is why it is
+random rather than derived from anything five identical sideloads would share.
+
+The **credentials** record stores the server URL next to the token, because a
+token is only valid against the server that issued it. A corrupt or incomplete
+record reads as "signed out" rather than raising — a D-pad cannot escape a
+crashed screen.
+
+`verify()` checks a restored token against the server. A 401 clears the stored
+credentials; anything else, including the server being unreachable, leaves them
+alone.
 
 ### Why not `@jellyfin/sdk` at runtime
 
@@ -135,8 +172,7 @@ API key ships inside the `.vpkg`. The token that comes back is per-device and
 revocable from the Jellyfin dashboard, which is why `DeviceInfo.id` must be
 stable per stick and unique across them.
 
-Not yet wired up: persisting the token and device id (AsyncStorage), and the
-screens. The client itself takes them as inputs.
+Not yet wired up: the screens. `JellyfinSession` is what they will consume.
 
 ## What was stripped from the sample
 

@@ -1,3 +1,11 @@
+/**
+ * Public surface of the Jellyfin client.
+ *
+ * `storage/asyncStorage` is deliberately NOT re-exported here: it is the only
+ * file in this directory that imports React Native, and keeping it off the
+ * barrel is what lets the rest be imported (and tested) under plain Node.
+ * The app wires it in explicitly.
+ */
 export {
   AUTHORIZATION_HEADER,
   buildAuthorizationHeader,
@@ -21,6 +29,10 @@ export {
   ticksToSeconds,
 } from './JellyfinClient';
 export {
+  JellyfinSession,
+  type JellyfinSessionOptions,
+} from './JellyfinSession';
+export {
   JellyfinHttp,
   type JellyfinHttpOptions,
   type RequestOptions,
@@ -36,3 +48,19 @@ export {
   waitForQuickConnect,
   type WaitForQuickConnectOptions,
 } from './quickConnect';
+export {
+  CREDENTIALS_KEY,
+  clearCredentials,
+  type JellyfinCredentials,
+  loadCredentials,
+  saveCredentials,
+} from './storage/credentialStore';
+export {
+  DEVICE_ID_KEY,
+  generateDeviceId,
+  loadDeviceInfo,
+} from './storage/deviceIdentity';
+export {
+  type KeyValueStore,
+  MemoryKeyValueStore,
+} from './storage/KeyValueStore';
