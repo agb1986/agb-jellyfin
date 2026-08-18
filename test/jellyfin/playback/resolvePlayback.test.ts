@@ -65,33 +65,63 @@ const remuxResponse = (
 });
 
 describe('resolvePlaybackTarget', () => {
-  it('uses the static stream URL when the server offers direct play', async () => {
+  it('uses the static stream URL when direct play is explicitly allowed', async () => {
     const target = resolvePlaybackTarget(
       makeClient(),
       item,
       directPlayResponse,
+      { allowDirectPlay: true },
     );
 
     expect(target.playMethod).toBe('DirectPlay');
     expect(target.titleData.format).toBe('MP4');
-    expect(target.titleData.uri).toContain('/Videos/item-1/stream');
+    // The container belongs in the path: a player that infers it from the URL
+    // has nothing to go on otherwise.
+    expect(target.titleData.uri).toContain('/Videos/item-1/stream.mp4');
     expect(target.titleData.uri).toContain('static=true');
   });
 
   it('carries the token in the media URL, since Shaka never sees our headers', async () => {
+    const target = resolvePlaybackTarget(makeClient(), item, directPlayResponse);
+    expect(target.titleData.uri).toContain('api_key=tok');
+  });
+
+  it('asks for HLS by default, even when the server offers direct play', async () => {
+    // The static player rejects a Jellyfin URL outright on the virtual device:
+    // the element initializes, src is set, load() is called, and it reports
+    // MEDIA_ERR_SRC_NOT_SUPPORTED. Shaka plays fragmented-MP4 HLS on the same
+    // device, so that is the path this client takes.
+    const target = resolvePlaybackTarget(makeClient(), item, directPlayResponse);
+
+    expect(target.titleData.format).toBe('HLS');
+    expect(target.titleData.uri).toContain('/Videos/item-1/master.m3u8');
+    expect(target.titleData.uri).toContain('SegmentContainer=mp4');
+  });
+
+  it('builds its own HLS URL when the server answers with a progressive stream', async () => {
+    // With a profile that permits direct play, Jellyfin answers
+    // TranscodingSubProtocol "http" and no TranscodingUrl at all, which leaves
+    // an HLS-only client with nothing to open.
     const target = resolvePlaybackTarget(
       makeClient(),
       item,
-      directPlayResponse,
+      remuxResponse({
+        TranscodingSubProtocol: 'http',
+        TranscodingUrl: '/videos/item-1/stream.mp4?ApiKey=tok',
+      }),
     );
-    expect(target.titleData.uri).toContain('api_key=tok');
+
+    expect(target.titleData.format).toBe('HLS');
+    expect(target.titleData.uri).toContain('master.m3u8');
   });
 
   it('refuses direct play for a container the static player cannot open', async () => {
     // Shaka handles HLS and DASH only, so an MKV has to be remuxed even when
     // the device could decode every stream inside it.
     const response = remuxResponse({ SupportsDirectPlay: true });
-    const target = resolvePlaybackTarget(makeClient(), item, response);
+    const target = resolvePlaybackTarget(makeClient(), item, response, {
+      allowDirectPlay: true,
+    });
 
     expect(target.playMethod).not.toBe('DirectPlay');
     expect(target.titleData.format).toBe('HLS');
@@ -147,7 +177,9 @@ describe('resolvePlaybackTarget', () => {
   it('translates ffmpeg codec names into the ones MediaSource understands', async () => {
     // h264 and avc1 are the same decoder, but only one survives
     // isTypeSupported.
-    const direct = resolvePlaybackTarget(makeClient(), item, directPlayResponse);
+    const direct = resolvePlaybackTarget(makeClient(), item, directPlayResponse, {
+      allowDirectPlay: true,
+    });
     expect(direct.titleData.vcodec).toBe('avc1');
     expect(direct.titleData.acodec).toBe('mp4a');
 
@@ -190,13 +222,8 @@ describe('resolvePlaybackTarget', () => {
       resolvePlaybackTarget(makeClient(), item, { MediaSources: [] }),
     ).toThrow(NoPlayableSourceError);
 
-    expect(() =>
-      resolvePlaybackTarget(
-        makeClient(),
-        item,
-        remuxResponse({ TranscodingUrl: undefined, Container: 'mkv' }),
-      ),
-    ).toThrow(NoPlayableSourceError);
+    // A source with no TranscodingUrl is no longer fatal — the client asks for
+    // HLS itself — so only a response with no source at all raises.
   });
 });
 

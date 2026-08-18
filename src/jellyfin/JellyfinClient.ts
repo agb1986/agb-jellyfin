@@ -223,6 +223,7 @@ export class JellyfinClient {
     itemId: string,
     mediaSourceId: string,
     playSessionId?: string,
+    container = 'mp4',
   ): string {
     // api_key in the query string, not the Authorization header: Shaka and the
     // static player fetch media through their own networking, which never sees
@@ -230,13 +231,57 @@ export class JellyfinClient {
     // same. It does mean playback URLs can end up in a proxy or server log,
     // which is a reason to keep the token per-device and revocable rather than
     // to reach for a server-wide API key.
-    return this.http.buildUrl(`/Videos/${encodeURIComponent(itemId)}/stream`, {
-      static: true,
-      mediaSourceId,
-      playSessionId,
-      deviceId: this.deviceInfo.id,
-      api_key: this.http.accessToken || undefined,
-    });
+    // The container goes in the path, not just the Content-Type. Jellyfin's own
+    // web client requests /stream.mp4, and a player that infers the container
+    // from the URL has nothing to work with otherwise.
+    return this.http.buildUrl(
+      `/Videos/${encodeURIComponent(itemId)}/stream.${container}`,
+      {
+        static: true,
+        mediaSourceId,
+        playSessionId,
+        deviceId: this.deviceInfo.id,
+        api_key: this.http.accessToken || undefined,
+      },
+    );
+  }
+
+  /**
+   * HLS playlist URL for an item.
+   *
+   * Used when the server does not hand back an HLS TranscodingUrl of its own —
+   * with a profile that permits direct play it answers
+   * `TranscodingSubProtocol: "http"` and no URL at all, which leaves a client
+   * that can only play HLS with nothing to open. Asking for master.m3u8
+   * directly lets Jellyfin decide internally whether that is a cheap remux or
+   * a real transcode; either way what arrives is HLS.
+   *
+   * `SegmentContainer=mp4` requests fragmented MP4 segments rather than
+   * MPEG-TS — the shape the playback spike confirmed this platform plays.
+   */
+  getHlsUrl(
+    itemId: string,
+    options: {
+      mediaSourceId?: string;
+      playSessionId?: string;
+      videoCodec?: string;
+      audioCodec?: string;
+      startTimeTicks?: number;
+    } = {},
+  ): string {
+    return this.http.buildUrl(
+      `/Videos/${encodeURIComponent(itemId)}/master.m3u8`,
+      {
+        mediaSourceId: options.mediaSourceId ?? itemId,
+        playSessionId: options.playSessionId,
+        deviceId: this.deviceInfo.id,
+        api_key: this.http.accessToken || undefined,
+        videoCodec: options.videoCodec ?? 'h264',
+        audioCodec: options.audioCodec ?? 'aac',
+        SegmentContainer: 'mp4',
+        startTimeTicks: options.startTimeTicks,
+      },
+    );
   }
 
   // --- Playback reporting -------------------------------------------------

@@ -204,12 +204,29 @@ the sample's VideoHandler and ShakaPlayer already consume.
 
 | Server says | What is opened | Format |
 |---|---|---|
-| DirectPlay, and the container is mp4/m4v/mov | `/Videos/{id}/stream?static=true` | `MP4` |
-| anything else | the server's `TranscodingUrl`, verbatim | `HLS` |
+| an HLS `TranscodingUrl` | that URL, verbatim | `HLS` |
+| anything else | `/Videos/{id}/master.m3u8`, built by this client | `HLS` |
+| DirectPlay, with `allowDirectPlay` | `/Videos/{id}/stream.{container}` | `MP4` |
 
-Direct play is refused for containers the static player cannot open even when
-the server offers it: Shaka handles HLS and DASH only, so an MKV has to be
-remuxed however capable the decoder is. The `TranscodingUrl` is used exactly as
+**Everything goes through HLS, including titles the server would happily direct
+play.** On the virtual device the static player rejects a Jellyfin URL outright:
+the element initializes, `src` is set, `load()` is called, and it reports
+`MEDIA_ERR_SRC_NOT_SUPPORTED` (code 4) without a single byte fetched. The same
+device plays fragmented-MP4 HLS through Shaka — which the playback spike had
+already established — so that is the path this client takes. Direct play
+survives behind `allowDirectPlay`, off by default, for whenever it can be
+tried on real hardware.
+
+The client also has to build the HLS URL itself in the common case. Given a
+profile that permits direct play, Jellyfin answers `TranscodingSubProtocol:
+"http"` with **no `TranscodingUrl` at all** — a progressive stream, which is
+exactly the thing that does not work here. Asking for `master.m3u8` explicitly
+lets the server decide whether that is a remux or a transcode; on the dev
+server it chose a remux (`-codec:v:0 copy -codec:a:0 copy -f hls
+-hls_segment_type fmp4`), which is the outcome this whole project is aiming
+for.
+
+An HLS `TranscodingUrl`, when the server does offer one, is used exactly as
 given — it already encodes the settings the server chose, including its own
 ApiKey, and appending to it risks contradicting them.
 

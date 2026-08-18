@@ -107,8 +107,9 @@ describe('JellyfinDetailsScreen', () => {
 
     const [screenName, params] = navigate.mock.calls[0];
     expect(screenName).toBe(Screens.PLAYER_SCREEN);
-    expect(params.data.uri).toContain('/Videos/item-1/stream');
-    expect(params.data.format).toBe('MP4');
+    // HLS by default: the static player cannot open a Jellyfin URL on Vega.
+    expect(params.data.uri).toContain('/Videos/item-1/master.m3u8');
+    expect(params.data.format).toBe('HLS');
     expect(params.data.title).toBe('Arrival');
 
     const playbackInfoCall = fetchImpl.mock.calls.find(([url]: [string]) =>

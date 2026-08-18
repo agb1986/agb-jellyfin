@@ -103,10 +103,20 @@ const streamOfType = (source: MediaSourceInfo, type: 'Video' | 'Audio') =>
  * cheap remux) and a real transcode; the server decides which, and says so in
  * TranscodeReasons.
  */
+export interface ResolvePlaybackOptions {
+  /**
+   * Allow the static player when the server offers direct play. Off by
+   * default: it does not work on the virtual device, and asking for HLS costs
+   * the server a remux at worst.
+   */
+  allowDirectPlay?: boolean;
+}
+
 export const resolvePlaybackTarget = (
   client: JellyfinClient,
   item: BaseItemDto,
   response: PlaybackInfoResponse,
+  options: ResolvePlaybackOptions = {},
 ): PlaybackTarget => {
   const source = response.MediaSources?.[0] as
     | MediaSourceWithReasons
@@ -119,6 +129,7 @@ export const resolvePlaybackTarget = (
   const itemId = item.Id as string;
   const container = (source.Container ?? '').toLowerCase();
   const canDirectPlay =
+    options.allowDirectPlay === true &&
     source.SupportsDirectPlay === true &&
     DIRECT_PLAY_CONTAINERS.includes(container);
 
@@ -130,19 +141,39 @@ export const resolvePlaybackTarget = (
   let playMethod: PlayMethod;
 
   if (canDirectPlay) {
-    uri = client.getStreamUrl(itemId, source.Id ?? itemId, response.PlaySessionId ?? undefined);
+    uri = client.getStreamUrl(
+      itemId,
+      source.Id ?? itemId,
+      response.PlaySessionId ?? undefined,
+      container,
+    );
     format = 'MP4';
     playMethod = 'DirectPlay';
-  } else if (source.TranscodingUrl) {
+  } else if (
+    source.TranscodingUrl &&
+    source.TranscodingSubProtocol !== 'http'
+  ) {
     // Already a complete relative URL carrying the server's chosen settings,
     // including its own ApiKey — appending anything to it risks contradicting
     // the parameters the server picked.
     uri = `${client.http.serverUrl}${source.TranscodingUrl}`;
-    format = source.TranscodingSubProtocol === 'http' ? 'MP4' : 'HLS';
+    format = 'HLS';
     playMethod =
       source.SupportsDirectStream === true ? 'DirectStream' : 'Transcode';
   } else {
-    throw new NoPlayableSourceError(item.Name ?? 'this title');
+    // Either the server offered nothing, or it offered a progressive HTTP
+    // stream — which on this platform means the static player, and the static
+    // player cannot open a Jellyfin URL. Ask for HLS explicitly instead, and
+    // let the server decide whether that is a remux or a transcode.
+    uri = client.getHlsUrl(itemId, {
+      mediaSourceId: source.Id ?? itemId,
+      playSessionId: response.PlaySessionId ?? undefined,
+      videoCodec: 'h264',
+      audioCodec: 'aac',
+    });
+    format = 'HLS';
+    playMethod =
+      source.SupportsDirectStream === true ? 'DirectStream' : 'Transcode';
   }
 
   const titleData: TitleData = {

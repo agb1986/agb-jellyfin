@@ -13,6 +13,44 @@ import { AppOverrideMediaControlHandler } from './AppOverrideMediaControlHandler
 import { SKIP_INTERVAL_SECONDS } from './videoPlayerValues';
 
 // Default video resolution settings based on platform (TV vs mobile/web)
+/**
+ * How long to wait for Kepler Media Controls to take focus before continuing
+ * without it. Long enough that a working platform never notices, short enough
+ * that a device where the call never returns still plays.
+ */
+const MEDIA_CONTROL_FOCUS_TIMEOUT_MS = 3000;
+
+/**
+ * Resolves when `promise` does, or after `timeoutMs`, whichever comes first.
+ *
+ * Used where a platform call that hangs would otherwise stop playback from
+ * ever starting. The timer is cleared either way so a resolved promise does
+ * not leave one pending.
+ */
+const withTimeout = async (
+  promise: Promise<unknown>,
+  timeoutMs: number,
+  label: string,
+): Promise<void> => {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<void>((resolve) => {
+    timer = setTimeout(() => {
+      console.error(
+        `[VideoHandler.ts] - ${label} did not return within ${timeoutMs}ms; continuing without it`,
+      );
+      resolve();
+    }, timeoutMs);
+  });
+
+  try {
+    await Promise.race([promise.then(() => undefined), timeout]);
+  } finally {
+    if (timer) {
+      clearTimeout(timer);
+    }
+  }
+};
+
 const DEFAULT_ABR_WIDTH: number = Platform.isTV ? 3840 : 1919;
 const DEFAULT_ABR_HEIGHT: number = Platform.isTV ? 2160 : 1079;
 
@@ -134,19 +172,30 @@ export class VideoHandler {
       }
       (global as any).gmedia = this.videoRef.current;
 
-      // KMC (Kepler Media Controls) integration
+      // KMC (Kepler Media Controls) integration.
+      //
+      // Bounded rather than awaited outright: on the Vega Virtual Device this
+      // promise never settles, and because initialize() runs after it, the
+      // player silently never starts — the log simply stops at the line below.
+      // Media controls are transport buttons; playback must not depend on
+      // them, so after the timeout we carry on and let them attach if they
+      // ever do.
       try {
         if (componentInstance) {
           console.info(
             '[VideoHandler.ts] - preBufferVideo - KMC :  set Media Control Focus',
           );
 
-          await this.videoRef.current.setMediaControlFocus(
-            componentInstance,
-            new AppOverrideMediaControlHandler(
-              this.videoRef.current as VideoPlayer,
-              false,
+          await withTimeout(
+            this.videoRef.current.setMediaControlFocus(
+              componentInstance,
+              new AppOverrideMediaControlHandler(
+                this.videoRef.current as VideoPlayer,
+                false,
+              ),
             ),
+            MEDIA_CONTROL_FOCUS_TIMEOUT_MS,
+            'setMediaControlFocus',
           );
         } else {
           console.log(

@@ -168,7 +168,7 @@ describe('JellyfinClient playback', () => {
     client.setAccessToken('tok', 'user-1');
 
     const url = client.getStreamUrl('item-1', 'src-1', 'play-1');
-    expect(url).toContain('/Videos/item-1/stream');
+    expect(url).toContain('/Videos/item-1/stream.mp4');
     expect(url).toContain('static=true');
     expect(url).toContain('mediaSourceId=src-1');
     expect(url).toContain('deviceId=device-abc');
