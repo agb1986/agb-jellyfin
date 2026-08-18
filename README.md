@@ -95,6 +95,49 @@ Only non-secrets belong there: the server URL is a development convenience so a
 build can reach a server before the setup screen exists. Credentials come from
 Quick Connect at runtime and are stored per device.
 
+## Jellyfin API client
+
+`src/jellyfin/` is the server half of the app: plain `fetch`, no React, no
+device APIs, so it runs and is tested under Node. `test/jellyfin/` covers it
+with an injected `fetchImpl` — there is no network in the suite.
+
+| Module | Role |
+|---|---|
+| `JellyfinHttp` | transport: base URL, `Authorization` header, query building, timeouts, typed errors |
+| `JellyfinClient` | the endpoints — system info, library, `PlaybackInfo`, playback reporting |
+| `quickConnect` | the device-code sign-in flow, including the polling loop |
+| `deviceProfile` | the DeviceProfile sent with `PlaybackInfo` |
+| `authorization` | builds the `MediaBrowser` header |
+| `errors` | network / timeout / API failures as distinct types |
+
+### Why not `@jellyfin/sdk` at runtime
+
+Jellyfin publishes an official TypeScript SDK, and it does bundle — Metro
+handled it, ESM and all. It is used here **for its generated types only**,
+which are `import type` and therefore erased at build time. Measured against
+the same baseline bundle:
+
+| | Added to the bundle |
+|---|---|
+| SDK runtime (`new Jellyfin(...)`) + axios | ~134 KB |
+| This client, SDK types only | ~16 KB |
+
+The SDK also needs axios, whose React Native behaviour on Vega is unverified,
+and the endpoints that matter most here — `PlaybackInfo` with a hand-tuned
+DeviceProfile — are exactly the ones worth controlling directly. `@jellyfin/sdk`
+is therefore a **devDependency**: importing a runtime value from it would fail
+the build, which is the intended guard rail.
+
+### Sign-in
+
+Quick Connect only. The user never types a password on a D-pad, and no shared
+API key ships inside the `.vpkg`. The token that comes back is per-device and
+revocable from the Jellyfin dashboard, which is why `DeviceInfo.id` must be
+stable per stick and unique across them.
+
+Not yet wired up: persisting the token and device id (AsyncStorage), and the
+screens. The client itself takes them as inputs.
+
 ## What was stripped from the sample
 
 The sample ships features a Jellyfin client has no use for. All of them are gone —

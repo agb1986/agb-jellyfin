@@ -152,14 +152,6 @@ jest.mock('@amazon-devices/react-navigation__native', () => ({
 jest.mock('@amazon-devices/react-navigation__drawer', () => ({
   useDrawerStatus: jest.fn().mockReturnValue('closed'),
 }));
-jest.mock('react-native-event-listeners', () => ({
-  EventRegister: {
-    addEventListener: jest.fn((_eventName) => {
-      return 'mockListenerId';
-    }),
-    removeEventListener: jest.fn(),
-  },
-}));
 jest.mock('@amazon-devices/kepler-performance-api', () => ({
   useReportFullyDrawn: jest.fn().mockReturnValue(jest.fn()),
 }));
