@@ -172,7 +172,78 @@ API key ships inside the `.vpkg`. The token that comes back is per-device and
 revocable from the Jellyfin dashboard, which is why `DeviceInfo.id` must be
 stable per stick and unique across them.
 
-Not yet wired up: the screens. `JellyfinSession` is what they will consume.
+### Screens
+
+`JellyfinScreen` is a single route that renders whichever of these the session
+state calls for, rather than navigating between routes — bootstrap is
+asynchronous, and a navigator whose initial route depends on an unresolved
+promise either flashes the wrong screen or shows none. Showing none is fatal:
+the splash has to come down within about fifteen seconds.
+
+| State | Screen |
+|---|---|
+| `starting` | spinner |
+| `signed-out` | `SignInScreen` — the Quick Connect code |
+| `signed-in` | `LibraryScreen` — libraries and their items |
+| `no-server` | how to set `JELLYFIN_SERVER_URL` |
+| `unavailable` | the server is unreachable, with a retry |
+
+`LibraryScreen` is deliberately thin. It opens the first library without
+waiting for a keypress — the Vega CLI cannot inject D-pad input, so a screen
+that needs a press to fetch anything cannot be verified on a headless device.
+
+`isJellyfinClientEnabled()` in `src/config/AppConfig.ts` switches between this
+and the sample's own screens, which stay registered while their parts are
+reused.
+
+### Reading anything off a Vega device
+
+Two traps make on-device debugging much harder than it looks, and cost most of
+a day between them:
+
+- **`console.log` is stripped from release builds** (`transform-remove-console`
+  in `babel.config.js` keeps only `error`, `info` and `warn`), and of those,
+  **`console.error` is the level that reliably reaches
+  `vega device start-log-stream`.**
+- **The log stream does not deliver an app's first seconds of output.**
+  Starting the stream before launching does not help. Anything logged during
+  bootstrap — which is when a client like this one does its most interesting
+  work — is simply never seen.
+
+Together those mean a one-shot diagnostic at startup is invisible. Both the
+sign-in screen and the gate screen therefore *repeat* their state on a timer
+while something is unresolved, at error level, and go quiet once signed in.
+That is also how a Quick Connect code can be read off a device with no visible
+screen and no way to inject input:
+
+```bash
+vega device start-log-stream | grep '\[jellyfin\]'
+# [jellyfin] sign-in phase=waiting code=530372 message=none
+```
+
+### Testing against a real server
+
+`test/jellyfin/integration.test.ts` runs the whole flow — Quick Connect
+sign-in included — against a live Jellyfin. It skips unless
+`JELLYFIN_TEST_SERVER` is set, so the normal suite stays hermetic and offline.
+
+```bash
+docker run -d --name jellyfin-dev -p 8096:8096 \
+  -v "$PWD/.jellyfin/config:/config" -v "$PWD/.jellyfin/cache:/cache" \
+  -v "$PWD/.jellyfin/media:/media" jellyfin/jellyfin:latest
+
+JELLYFIN_TEST_SERVER=http://localhost:8096 \
+JELLYFIN_TEST_USER=devuser JELLYFIN_TEST_PASSWORD=devpass \
+  npx jest test/jellyfin/integration --coverage=false --forceExit
+```
+
+The test approves its own Quick Connect code through
+`POST /QuickConnect/Authorize`, which is what the web UI does, so no human is
+needed in the loop.
+
+From the virtual device the host is reachable at **`10.0.2.2`**, not
+`localhost` — QEMU user-mode networking. `JELLYFIN_SERVER_URL=http://10.0.2.2:8096`
+is what a VVD build needs.
 
 ## What was stripped from the sample
 

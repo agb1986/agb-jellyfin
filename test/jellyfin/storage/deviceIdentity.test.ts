@@ -64,3 +64,28 @@ describe('loadDeviceInfo', () => {
     expect(a.id).not.toBe(b.id);
   });
 });
+
+describe('loadDeviceInfo when storage is broken', () => {
+  // Vega's AsyncStorage logs "Application data root path is not set" on the
+  // virtual device; a client that cannot start because of that is worse than
+  // one whose id does not persist.
+  const broken = {
+    getItem: jest.fn().mockRejectedValue(new Error('data root not set')),
+    setItem: jest.fn().mockRejectedValue(new Error('data root not set')),
+    removeItem: jest.fn().mockRejectedValue(new Error('data root not set')),
+  };
+
+  it('still produces a usable identity when reads fail', async () => {
+    const info = await loadDeviceInfo(broken, 'Living Room');
+    expect(info.id).toMatch(/^[0-9a-f]{32}$/);
+  });
+
+  it('still produces a usable identity when writes fail', async () => {
+    const readable = {
+      ...broken,
+      getItem: jest.fn().mockResolvedValue(null),
+    };
+    const info = await loadDeviceInfo(readable, 'Living Room');
+    expect(info.id).toMatch(/^[0-9a-f]{32}$/);
+  });
+});

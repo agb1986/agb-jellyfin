@@ -4,7 +4,10 @@
 import { createStackNavigator } from '@amazon-devices/react-navigation__stack';
 import React, { useEffect } from 'react';
 import { useDispatch } from 'react-redux';
-import { isPlaybackSpikeEnabled } from '../../config/AppConfig';
+import {
+  isJellyfinClientEnabled,
+  isPlaybackSpikeEnabled,
+} from '../../config/AppConfig';
 import { AppDispatch } from '../../store';
 import { fetchPlaylists } from '../../store/search/searchSlice';
 import { WithSuspense } from '../../utils/WithSuspense';
@@ -17,6 +20,7 @@ const SearchResultsScreen = React.lazy(
   () => import('../../screens/SearchResultsScreen'),
 );
 const FeedBackScreen = React.lazy(() => import('../../screens/FeedbackScreen'));
+const JellyfinScreen = React.lazy(() => import('../../screens/JellyfinScreen'));
 const PlaybackSpikeScreen = React.lazy(
   () => import('../../screens/PlaybackSpikeScreen'),
 );
@@ -43,9 +47,15 @@ const AppStack = () => {
   // an unattended run is the only way to get results out of a headless device.
   // The manual list screen stays registered for driving it by hand on a device
   // you can actually see. The rest of the sample remains reachable behind both.
-  const initialRouteName = isPlaybackSpikeEnabled()
-    ? Screens.PLAYBACK_SPIKE_RUNNER_SCREEN
-    : Screens.APP_DRAWER;
+  // The spike wins when it is on, because it is a measurement run rather than
+  // the app. Otherwise the Jellyfin client is the app, and the sample's own
+  // screens remain registered behind it while their parts are reused.
+  let initialRouteName = Screens.APP_DRAWER;
+  if (isPlaybackSpikeEnabled()) {
+    initialRouteName = Screens.PLAYBACK_SPIKE_RUNNER_SCREEN;
+  } else if (isJellyfinClientEnabled()) {
+    initialRouteName = Screens.JELLYFIN_SCREEN;
+  }
 
   return (
     <Stack.Navigator
@@ -58,6 +68,10 @@ const AppStack = () => {
       <Stack.Screen
         name={Screens.PLAYBACK_SPIKE_SCREEN}
         component={WithSuspense(PlaybackSpikeScreen)}
+      />
+      <Stack.Screen
+        name={Screens.JELLYFIN_SCREEN}
+        component={WithSuspense(JellyfinScreen)}
       />
       <Stack.Screen name={Screens.APP_DRAWER} component={AppDrawer} />
       <Stack.Screen

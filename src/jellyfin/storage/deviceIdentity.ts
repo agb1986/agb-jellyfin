@@ -53,12 +53,29 @@ export const loadDeviceInfo = async (
   store: KeyValueStore,
   deviceName: string,
 ): Promise<DeviceInfo> => {
-  const existing = await store.getItem(DEVICE_ID_KEY);
-  if (existing) {
-    return { name: deviceName, id: existing };
+  // A broken store must not stop the app from running. Persistence is what
+  // makes the id stable, not what makes it work: without it the device simply
+  // looks new to the server on each launch, which is worse than nothing
+  // persisting but far better than a screen the user cannot get past.
+  try {
+    const existing = await store.getItem(DEVICE_ID_KEY);
+    if (existing) {
+      return { name: deviceName, id: existing };
+    }
+  } catch (error) {
+    console.warn(
+      `[jellyfin] could not read the stored device id: ${(error as Error).message}`,
+    );
+    return { name: deviceName, id: generateDeviceId() };
   }
 
   const id = generateDeviceId();
-  await store.setItem(DEVICE_ID_KEY, id);
+  try {
+    await store.setItem(DEVICE_ID_KEY, id);
+  } catch (error) {
+    console.warn(
+      `[jellyfin] could not persist the device id, so this device will look new on every launch: ${(error as Error).message}`,
+    );
+  }
   return { name: deviceName, id };
 };

@@ -28,14 +28,33 @@ const isRunningOnSimulator = () => {
 */
 
 /**
+ * Version reported to the Jellyfin server; it appears beside this device in
+ * the dashboard. Keep in step with `package.json` and `manifest.toml` — those
+ * are read by the build, not by the bundle, so there is nothing to import.
+ */
+const APP_VERSION = '0.1.0';
+
+/** Client name shown in the Jellyfin dashboard and on the approval prompt. */
+const JELLYFIN_CLIENT_NAME = 'Jellyfin Vega';
+
+/**
+ * Launch into the Jellyfin client rather than the sample's own screens. The
+ * sample UI stays reachable while its components are being replaced.
+ */
+const isJellyfinClientEnabled = () => {
+  return true;
+};
+
+/**
  * Development-only: launch straight into the playback spike harness instead of
  * the sample's home screen. The spike answers whether Vega can decode the
  * container/codec combinations a Jellyfin server emits, which gates the whole
- * project. Set to false (and delete src/spike + PlaybackSpikeScreen) once the
- * results are recorded.
+ * project. Results are recorded in docs/playback-spike-results.md, so this is
+ * off; the harness stays in the tree because it still has to be re-run on
+ * armv7 hardware, where the HEVC and AC-3 answers may differ.
  */
 const isPlaybackSpikeEnabled = () => {
-  return true;
+  return false;
 };
 
 /**
@@ -51,7 +70,10 @@ const isDpadControllerSupported = () => {
 };
 
 export {
+  APP_VERSION,
+  isJellyfinClientEnabled,
   isPlaybackSpikeEnabled,
+  JELLYFIN_CLIENT_NAME,
   isDpadControllerSupported,
   isRunningOnAutomotive,
   isRunningOnTVSimulator,

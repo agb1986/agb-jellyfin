@@ -203,6 +203,9 @@ jest.mock('@amazon-devices/react-native-svg', () => ({
 jest.mock('./src/config/AppConfig', () => ({
   isDpadControllerSupported: jest.fn(() => true),
   isPlaybackSpikeEnabled: jest.fn(() => false),
+  isJellyfinClientEnabled: jest.fn(() => false),
+  APP_VERSION: '0.1.0',
+  JELLYFIN_CLIENT_NAME: 'Jellyfin Vega',
 }));
 jest.mock('./src/w3cmedia/shakaplayer/ShakaPlayer', () => ({
   ShakaPlayer: jest.fn(),

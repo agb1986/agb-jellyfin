@@ -26,6 +26,20 @@ import { KeyValueStore } from './storage/KeyValueStore';
  * React Native imports; the app passes `asyncKeyValueStore`.
  */
 
+/**
+ * No address to talk to: nothing stored, and none supplied. Distinct from
+ * every other bootstrap failure, because the fix is configuration rather than
+ * a retry.
+ */
+export class JellyfinNoServerError extends Error {
+  constructor() {
+    super(
+      'No Jellyfin server URL: nothing is stored, and none was supplied (see JELLYFIN_SERVER_URL in .env, or the setup screen)',
+    );
+    this.name = 'JellyfinNoServerError';
+  }
+}
+
 export interface JellyfinSessionOptions {
   store: KeyValueStore;
   clientInfo: ClientInfo;
@@ -74,9 +88,7 @@ export class JellyfinSession {
     const serverUrl = credentials?.serverUrl ?? options.serverUrl;
 
     if (!serverUrl) {
-      throw new Error(
-        'No Jellyfin server URL: nothing is stored, and none was supplied (see JELLYFIN_SERVER_URL in .env, or the setup screen)',
-      );
+      throw new JellyfinNoServerError();
     }
 
     const client = new JellyfinClient({

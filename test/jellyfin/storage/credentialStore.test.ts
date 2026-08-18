@@ -62,3 +62,24 @@ describe('credentialStore', () => {
     await expect(loadCredentials(store)).resolves.toBeNull();
   });
 });
+
+describe('credentialStore when storage is broken', () => {
+  const broken = {
+    getItem: jest.fn().mockRejectedValue(new Error('data root not set')),
+    setItem: jest.fn().mockRejectedValue(new Error('data root not set')),
+    removeItem: jest.fn().mockRejectedValue(new Error('data root not set')),
+  };
+
+  it('reads as signed out rather than raising', async () => {
+    await expect(loadCredentials(broken)).resolves.toBeNull();
+  });
+
+  it('does not undo a successful sign-in because the write failed', async () => {
+    // The session still works for as long as the app is open.
+    await expect(saveCredentials(broken, credentials)).resolves.toBeUndefined();
+  });
+
+  it('does not raise on a failed clear', async () => {
+    await expect(clearCredentials(broken)).resolves.toBeUndefined();
+  });
+});

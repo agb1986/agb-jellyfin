@@ -44,24 +44,36 @@ const isCredentials = (value: unknown): value is JellyfinCredentials => {
 export const loadCredentials = async (
   store: KeyValueStore,
 ): Promise<JellyfinCredentials | null> => {
-  const raw = await store.getItem(CREDENTIALS_KEY);
-  if (!raw) {
-    return null;
-  }
-
   try {
+    const raw = await store.getItem(CREDENTIALS_KEY);
+    if (!raw) {
+      return null;
+    }
     const parsed: unknown = JSON.parse(raw);
     return isCredentials(parsed) ? parsed : null;
   } catch {
+    // Unreadable storage and unreadable contents mean the same thing to the
+    // caller: sign in again.
     return null;
   }
 };
 
+/**
+ * Persists a session. A storage failure is reported but not raised: the user
+ * has just signed in successfully, and undoing that because the write failed
+ * would be the wrong trade. The session lives until the app is closed.
+ */
 export const saveCredentials = async (
   store: KeyValueStore,
   credentials: JellyfinCredentials,
 ): Promise<void> => {
-  await store.setItem(CREDENTIALS_KEY, JSON.stringify(credentials));
+  try {
+    await store.setItem(CREDENTIALS_KEY, JSON.stringify(credentials));
+  } catch (error) {
+    console.warn(
+      `[jellyfin] signed in, but the session could not be saved and will not survive a restart: ${(error as Error).message}`,
+    );
+  }
 };
 
 /**
@@ -70,5 +82,11 @@ export const saveCredentials = async (
  * everywhere.
  */
 export const clearCredentials = async (store: KeyValueStore): Promise<void> => {
-  await store.removeItem(CREDENTIALS_KEY);
+  try {
+    await store.removeItem(CREDENTIALS_KEY);
+  } catch (error) {
+    console.warn(
+      `[jellyfin] could not clear the stored session: ${(error as Error).message}`,
+    );
+  }
 };
