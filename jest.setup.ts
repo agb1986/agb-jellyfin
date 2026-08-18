@@ -304,6 +304,7 @@ jest.mock('./src/config/AppConfig', () => ({
   isAccountLoginEnabled: jest.fn(() => true),
   isDpadControllerSupported: jest.fn(() => true),
   isChannelTuningV2Enabled: jest.fn(() => true),
+  isPlaybackSpikeEnabled: jest.fn(() => false),
 }));
 jest.mock('./src/w3cmedia/shakaplayer/ShakaPlayer', () => ({
   ShakaPlayer: jest.fn(),
