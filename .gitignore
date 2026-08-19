@@ -1,0 +1,27 @@
+# Dependencies
+node_modules
+
+# Build output
+build/
+buildinfo.json
+kepler-build/
+bundle/
+generated/
+coverage/
+
+# Shaka Player is cloned and built by `npm install` (shaka-setup/build.sh).
+# Never commit it: it is a 158 MB checkout of shaka-project/shaka-player.
+shaka-setup/shaka-player/
+
+# Local config — never commit; may contain the Jellyfin server address
+.env
+.env.local
+
+# Editor / OS
+*.iml
+*.swp
+.idea
+.DS_Store
+.vscode
+.tmp
+npm-debug.log

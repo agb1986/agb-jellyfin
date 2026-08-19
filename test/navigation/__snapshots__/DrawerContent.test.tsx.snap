@@ -1,0 +1,85 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`DrawerContent Component renders correctly 1`] = `
+<View
+  accessibilityIgnoresInvertColors={true}
+  style={
+    [
+      {
+        "backgroundColor": "#1C1C1C",
+        "height": "100%",
+        "position": "absolute",
+      },
+      {
+        "width": 100,
+      },
+    ]
+  }
+>
+  <Image
+    source={
+      {
+        "testUri": "../../../src/assets/nav_drawer_background_gradient.png",
+      }
+    }
+    style={
+      [
+        {
+          "bottom": 0,
+          "left": 0,
+          "position": "absolute",
+          "right": 0,
+          "top": 0,
+        },
+        {
+          "height": "100%",
+          "width": 100,
+        },
+        undefined,
+      ]
+    }
+  />
+</View>
+`;
+
+exports[`DrawerContent Component renders correctly with 1`] = `
+<View
+  accessibilityIgnoresInvertColors={true}
+  style={
+    [
+      {
+        "backgroundColor": "#1C1C1C",
+        "height": "100%",
+        "position": "absolute",
+      },
+      {
+        "width": 100,
+      },
+    ]
+  }
+>
+  <Image
+    source={
+      {
+        "testUri": "../../../src/assets/nav_drawer_background_gradient.png",
+      }
+    }
+    style={
+      [
+        {
+          "bottom": 0,
+          "left": 0,
+          "position": "absolute",
+          "right": 0,
+          "top": 0,
+        },
+        {
+          "height": "100%",
+          "width": 100,
+        },
+        undefined,
+      ]
+    }
+  />
+</View>
+`;

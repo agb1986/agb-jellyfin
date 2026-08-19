@@ -1,0 +1,110 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`VideoTile tests should match the snapshot on first render 1`] = `
+<View
+  collapsable={false}
+  onBlur={[Function]}
+  onFocus={[Function]}
+  style={
+    {
+      "alignItems": "center",
+      "flex": 1,
+      "justifyContent": "center",
+    }
+  }
+  testID="tileContainer1"
+>
+  <View
+    accessibilityState={
+      {
+        "busy": undefined,
+        "checked": undefined,
+        "disabled": undefined,
+        "expanded": undefined,
+        "selected": undefined,
+      }
+    }
+    accessibilityValue={
+      {
+        "max": undefined,
+        "min": undefined,
+        "now": undefined,
+        "text": undefined,
+      }
+    }
+    accessible={true}
+    collapsable={false}
+    focusable={true}
+    onBlur={[Function]}
+    onClick={[Function]}
+    onFocus={[Function]}
+    onResponderGrant={[Function]}
+    onResponderMove={[Function]}
+    onResponderRelease={[Function]}
+    onResponderTerminate={[Function]}
+    onResponderTerminationRequest={[Function]}
+    onStartShouldSetResponder={[Function]}
+    style={
+      [
+        {
+          "backgroundColor": "#202225",
+          "borderColor": "transparent",
+          "borderRadius": 20,
+          "borderWidth": 6,
+          "height": 387.5,
+          "margin": undefined,
+          "overflow": "hidden",
+          "shadowColor": "#000000",
+          "shadowOffset": {
+            "height": 1,
+            "width": 0,
+          },
+          "shadowOpacity": 0.3,
+          "shadowRadius": 2.5,
+          "width": 264,
+        },
+        {
+          "alignItems": "flex-start",
+          "flexDirection": "column",
+          "overflow": "hidden",
+        },
+        undefined,
+        false,
+      ]
+    }
+    testID="card1"
+  >
+    <View
+      style={
+        {
+          "aspectRatio": 1,
+          "height": undefined,
+          "width": 252,
+        }
+      }
+    >
+      <Image
+        source={
+          {
+            "uri": "https://example.com/thumbnail.jpg",
+          }
+        }
+        style={
+          [
+            {
+              "borderRadius": 0,
+            },
+            {
+              "height": "100%",
+              "resizeMode": "cover",
+              "width": "100%",
+            },
+            undefined,
+            false,
+          ]
+        }
+      />
+    </View>
+  </View>
+</View>
+`;
