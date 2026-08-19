@@ -82,12 +82,11 @@ const JellyfinDetailsScreen = ({
           playSessionId: target.playSessionId,
           mediaSourceId: target.mediaSourceId,
           playMethod: target.playMethod,
-          // Only ask the player to seek when the stream does not already
-          // start at the resume point.
-          startPositionTicks: target.startAppliedServerSide
+          // Only ask the player to seek when the stream did not already
+          // open at the resume point.
+          startPositionTicks: target.startAppliedAtLoad
             ? 0
             : target.startPositionTicks,
-          positionOffsetTicks: target.positionOffsetTicks,
         },
       });
     } catch (playError) {

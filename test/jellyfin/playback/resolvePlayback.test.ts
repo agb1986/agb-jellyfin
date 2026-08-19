@@ -267,29 +267,40 @@ describe('transcode reasons hidden in the TranscodingUrl', () => {
   });
 });
 
-describe('resume against a server-generated HLS playlist', () => {
-  const withResume = { ...item, UserData: { PlaybackPositionTicks: 900_000_000 } };
+describe('resume against an HLS stream', () => {
+  const withResume = {
+    ...item,
+    UserData: { PlaybackPositionTicks: 900_000_000 },
+  };
 
-  it('does not ask the player to seek into a playlist the server builds on demand', async () => {
-    // Two approaches were tried on device and both fail. Seeking asks for a
-    // segment the server has not written — it logs "cannot serve ... no
-    // transcode is running", restarts ffmpeg, and the fetches in flight fail.
-    // Passing startTimeTicks on the playlist URL is worse: Jellyfin copies the
-    // query into its own segment URLs and then rejects them with
-    // "StartTimeTicks is not allowed", so playback never gets an init segment.
+  it('opens the stream at the resume point rather than seeking to it', async () => {
     const target = resolvePlaybackTarget(
       makeClient(),
       withResume,
       directPlayResponse,
     );
 
-    expect(target.titleData.uri).not.toContain('startTimeTicks');
-    expect(target.startPositionTicks).toBe(0);
-    expect(target.startAppliedServerSide).toBe(false);
-    expect(target.positionOffsetTicks).toBe(0);
+    // 900,000,000 ticks is 90 seconds. Shaka receives this at load().
+    expect(target.titleData.startTimeSeconds).toBe(90);
+    expect(target.startAppliedAtLoad).toBe(true);
+    expect(target.startPositionTicks).toBe(900_000_000);
   });
 
-  it('still seeks for direct play, where the file has a whole timeline', async () => {
+  it('never puts startTimeTicks on the playlist URL', async () => {
+    // Jellyfin returns the same playlist either way — segment 0 onwards,
+    // covering the whole title — but copies the parameter into every segment
+    // URL it generates and then rejects its own request with
+    // "StartTimeTicks is not allowed" on /hls1/main/-1.mp4.
+    const target = resolvePlaybackTarget(
+      makeClient(),
+      withResume,
+      directPlayResponse,
+    );
+
+    expect(target.titleData.uri.toLowerCase()).not.toContain('starttimeticks');
+  });
+
+  it('leaves direct play to seek, since the static player is not Shaka', async () => {
     const target = resolvePlaybackTarget(
       makeClient(),
       withResume,
@@ -297,7 +308,8 @@ describe('resume against a server-generated HLS playlist', () => {
       { allowDirectPlay: true },
     );
 
+    expect(target.startAppliedAtLoad).toBe(false);
+    expect(target.titleData.startTimeSeconds).toBeUndefined();
     expect(target.startPositionTicks).toBe(900_000_000);
-    expect(target.positionOffsetTicks).toBe(0);
   });
 });

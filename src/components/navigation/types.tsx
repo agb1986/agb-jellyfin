@@ -62,10 +62,11 @@ export type AppStackParamList = {
       playSessionId?: string;
       mediaSourceId?: string;
       playMethod?: 'DirectPlay' | 'DirectStream' | 'Transcode';
-      /** Where the player should seek to. Zero when the stream already starts there. */
+      /**
+       * Where the player should seek to after loading. Zero for HLS, which
+       * opens at the resume point instead; see PlaybackTarget.
+       */
       startPositionTicks?: number;
-      /** Added to the element's currentTime before reporting; see PlaybackTarget. */
-      positionOffsetTicks?: number;
     };
   };
 };
