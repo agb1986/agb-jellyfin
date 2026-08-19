@@ -14,7 +14,7 @@ id = "com.amazondeveloper.agbjellyfin"      # [required] Package identifier. Mus
                                             #            non-Amazon package IDs may be sideloaded onto a device.
 title = "Jellyfin"                          # [required] string name for the app, used to display on FireTV launcher and Appstore.
 version = "0.1.0"                           # [required] Version string of the app.
-icon = "@image/VideoApp.png"                # [required] TODO: replace with a Jellyfin icon.
+icon = "@image/JellyfinVega.png"           # [required]
 
 [os.version]
 min = "1.2"

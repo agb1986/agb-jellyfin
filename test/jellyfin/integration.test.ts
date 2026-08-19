@@ -346,6 +346,70 @@ describeLive('against a live Jellyfin server', () => {
     expect(await response.text()).toContain('WEBVTT');
   });
 
+  it('finds items across every library by search term', async () => {
+    const session = await JellyfinSession.create({
+      store: new MemoryKeyValueStore(),
+      clientInfo,
+      deviceName: 'integration',
+      serverUrl,
+    });
+    session.client.setAccessToken(
+      await signInWithPassword(serverUrl as string),
+    );
+    await session.client.getCurrentUser();
+
+    // Take a real title's first word and search for it, so the term is known
+    // to exist without hard-coding anything about the library.
+    const views = await session.client.getUserViews();
+    const items = await session.client.getItems({
+      parentId: views.Items?.[0]?.Id,
+      recursive: true,
+      includeItemTypes: ['Movie'],
+      limit: 1,
+    });
+    const known = items.Items?.[0];
+    const word = (known?.Name ?? '').split(' ')[0];
+    expect(word.length).toBeGreaterThan(0);
+
+    const found = await session.client.getItems({
+      searchTerm: word,
+      recursive: true,
+      includeItemTypes: ['Movie', 'Series', 'Episode'],
+      limit: 60,
+    });
+
+    process.stdout.write(
+      `[integration] search "${word}" returned ${found.Items?.length ?? 0}: ` +
+        `${(found.Items ?? []).map((i) => i.Name).join(', ')}\n`,
+    );
+
+    expect(found.Items?.some((i) => i.Id === known?.Id)).toBe(true);
+  });
+
+  it('returns nothing, rather than everything, for a term that matches no title', async () => {
+    // Worth pinning: an ignored searchTerm would look like a working search
+    // that always returns the whole library.
+    const session = await JellyfinSession.create({
+      store: new MemoryKeyValueStore(),
+      clientInfo,
+      deviceName: 'integration',
+      serverUrl,
+    });
+    session.client.setAccessToken(
+      await signInWithPassword(serverUrl as string),
+    );
+    await session.client.getCurrentUser();
+
+    const found = await session.client.getItems({
+      searchTerm: 'zzzznotathingzzzz',
+      recursive: true,
+      includeItemTypes: ['Movie', 'Series', 'Episode'],
+      limit: 60,
+    });
+
+    expect(found.Items ?? []).toHaveLength(0);
+  });
+
   it('turns a reported stop into a resume point the server hands back', async () => {
     // The whole reason reporting is server-side: this is what makes a film
     // resume on a different stick, and what fills Continue Watching.

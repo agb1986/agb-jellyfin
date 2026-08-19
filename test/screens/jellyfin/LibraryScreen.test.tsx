@@ -156,6 +156,19 @@ describe('LibraryScreen', () => {
     expect(screen.queryByTestId('jellyfin-details-screen')).toBeNull();
   });
 
+  it('opens search from the library', async () => {
+    await renderLibrary(happyPath());
+
+    await waitFor(() =>
+      expect(screen.getByTestId('jellyfin-search-open')).toBeTruthy(),
+    );
+    fireEvent.press(screen.getByTestId('jellyfin-search-open'));
+
+    await waitFor(() =>
+      expect(screen.getByTestId('jellyfin-search-screen')).toBeTruthy(),
+    );
+  });
+
   it('says a library is empty rather than looking broken', async () => {
     const fetchImpl = jest
       .fn()

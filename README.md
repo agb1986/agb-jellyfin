@@ -335,7 +335,31 @@ the player fetches subtitles through its own networking and never sees this
 client's `Authorization` header — the same reason media URLs carry `api_key`.
 
 Not yet verified on a device: turning captions on needs a keypress, and Vega
-has no input injection.
+has no input injection. The same applies to the series and search screens —
+both need a remote to drive, so their behaviour is covered by tests and by
+live checks against the server rather than by watching a stick.
+
+### Search
+
+`JellyfinSearchScreen` searches across every library, reached from the button
+in the library header. It looks for films, series and individual episodes, and
+each result carries enough context to tell similar hits apart — an episode
+shows its series and number, a series says it is one.
+
+Two decisions worth stating. **The search runs on submit, not per keystroke:**
+on a remote every character is several presses, so searching as you type fires
+a request per press and shows results for prefixes nobody meant to search for.
+And it deliberately sends **no `parentId`** — search means the whole server,
+not whichever library happened to be open.
+
+It is a screen of its own rather than a field on the library grid because the
+sample's `SearchInput` takes focus on mount, which is right for a screen that
+exists to be typed into and wrong for one where the grid should be focused.
+
+A live test pins the behaviour that would otherwise fail silently: a
+`searchTerm` the server ignored would look like a working search that always
+returns the entire library, so one test searches for a term that matches
+nothing and asserts on an empty result.
 
 ### Playback reporting
 
