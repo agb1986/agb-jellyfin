@@ -93,6 +93,9 @@ jest.mock('@amazon-devices/react-native-kepler', () => {
       }),
     }),
     TVFocusGuideView: jest.fn(),
+    // Kepler re-exports a focusable TextInput. Tests only need something that
+    // renders and fires onSubmitEditing, so React Native's own will do.
+    TextInput: jest.requireActual('react-native').TextInput,
     default: jest.fn(),
   };
 });

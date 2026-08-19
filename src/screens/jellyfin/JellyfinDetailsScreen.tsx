@@ -82,12 +82,11 @@ const JellyfinDetailsScreen = ({
           playSessionId: target.playSessionId,
           mediaSourceId: target.mediaSourceId,
           playMethod: target.playMethod,
-          // Only ask the player to seek when the stream does not already
-          // start at the resume point.
-          startPositionTicks: target.startAppliedServerSide
+          // Only ask the player to seek when the stream did not already
+          // open at the resume point.
+          startPositionTicks: target.startAppliedAtLoad
             ? 0
             : target.startPositionTicks,
-          positionOffsetTicks: target.positionOffsetTicks,
         },
       });
     } catch (playError) {
@@ -108,7 +107,19 @@ const JellyfinDetailsScreen = ({
         })
       : undefined;
 
+  // An episode arrives here from the series screen, where its own name is
+  // often "Episode 3" and the useful identity is the series plus the number.
+  const isEpisode = item.Type === 'Episode';
+  const episodeNumber =
+    item.ParentIndexNumber !== undefined &&
+    item.ParentIndexNumber !== null &&
+    item.IndexNumber !== undefined &&
+    item.IndexNumber !== null
+      ? `S${item.ParentIndexNumber} E${item.IndexNumber}`
+      : '';
+
   const meta = [
+    isEpisode ? episodeNumber : '',
     item.ProductionYear ? String(item.ProductionYear) : '',
     formatRuntime(item.RunTimeTicks),
     item.OfficialRating ?? '',
@@ -132,6 +143,11 @@ const JellyfinDetailsScreen = ({
         )}
 
         <View style={styles.details}>
+          {isEpisode && item.SeriesName && (
+            <Text style={styles.seriesName} numberOfLines={1}>
+              {item.SeriesName}
+            </Text>
+          )}
           <Text style={styles.title}>{item.Name}</Text>
           {meta.length > 0 && <Text style={styles.meta}>{meta}</Text>}
           {item.Overview && (
@@ -196,6 +212,11 @@ const styles = StyleSheet.create({
   },
   details: {
     flex: 1,
+  },
+  seriesName: {
+    color: COLORS.PALE_GRAY,
+    fontSize: scaleUxToDp(26),
+    marginBottom: scaleUxToDp(4),
   },
   title: {
     color: COLORS.WHITE,

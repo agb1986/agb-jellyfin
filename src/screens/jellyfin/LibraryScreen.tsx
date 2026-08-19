@@ -13,7 +13,8 @@ import { Screens } from '../../components/navigation/types';
 import { useJellyfin } from '../../jellyfin/react/JellyfinProvider';
 import { COLORS } from '../../styles/Colors';
 import { scaleUxToDp } from '../../utils/pixelUtils';
-import JellyfinDetailsScreen from './JellyfinDetailsScreen';
+import JellyfinItemScreen from './JellyfinItemScreen';
+import JellyfinSearchScreen from './JellyfinSearchScreen';
 
 /**
  * The signed-in landing screen: the user's libraries, and the items in the
@@ -41,6 +42,7 @@ const LibraryScreen = ({ navigation }: LibraryScreenProps) => {
   // already in hand, and pushing a route would mean re-fetching it or
   // threading a BaseItemDto through navigation params.
   const [selectedItem, setSelectedItem] = useState<BaseItemDto | null>(null);
+  const [searching, setSearching] = useState(false);
   const [views, setViews] = useState<BaseItemDto[]>([]);
   const [selectedViewId, setSelectedViewId] = useState<string | null>(null);
   const [items, setItems] = useState<BaseItemDto[]>([]);
@@ -147,10 +149,19 @@ const LibraryScreen = ({ navigation }: LibraryScreenProps) => {
 
   if (selectedItem) {
     return (
-      <JellyfinDetailsScreen
+      <JellyfinItemScreen
         item={selectedItem}
         navigation={navigation}
         onBack={() => setSelectedItem(null)}
+      />
+    );
+  }
+
+  if (searching) {
+    return (
+      <JellyfinSearchScreen
+        navigation={navigation}
+        onBack={() => setSearching(false)}
       />
     );
   }
@@ -163,6 +174,12 @@ const LibraryScreen = ({ navigation }: LibraryScreenProps) => {
             ? `Jellyfin — ${session.storedCredentials.userName}`
             : 'Jellyfin'}
         </Text>
+        <TouchableOpacity
+          onPress={() => setSearching(true)}
+          style={styles.signOut}
+          testID="jellyfin-search-open">
+          <Text style={styles.signOutLabel}>Search</Text>
+        </TouchableOpacity>
         <TouchableOpacity
           onPress={signOut}
           style={styles.signOut}

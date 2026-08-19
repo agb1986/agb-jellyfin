@@ -250,26 +250,116 @@ is the Phase 2 loop in miniature:
 [jellyfin] play "Big Buck Bunny" method=DirectPlay format=MP4 vcodec=avc1 acodec=mp4a reasons=none
 ```
 
-### Resume is not wired up for HLS yet
+### Resume on the HLS path
 
-Playback starts from the beginning, even when the server has a resume point.
-Two approaches were tried on the device and both fail:
+Resume is applied **when Shaka loads the stream**, not by seeking afterwards.
+`resolvePlaybackTarget` puts the resume point on `TitleData.startTimeSeconds`,
+and `ShakaPlayer.internalLoad` passes it as the second argument to Shaka's
+`load()`. Shaka then picks its starting segment itself, so playback opens at
+the resume point rather than opening at zero and jumping.
 
-- **Seeking client-side** asks for a segment the server has not written.
-  Jellyfin generates HLS on demand, logs `cannot serve ... no transcode is
-  running`, restarts ffmpeg at the new offset, and the fetches already in
-  flight fail meanwhile. On the device that surfaces as HTTP 400 and CURL
-  error 7 inside the native fetcher, and playback ending the moment it starts.
-- **Passing `startTimeTicks` on the playlist URL** is worse. Jellyfin copies
-  the query string into the segment URLs it generates, then rejects its own
-  request: `System.ArgumentException: StartTimeTicks is not allowed` on
+This replaced an earlier reading of the problem that was wrong, and the
+correction is worth recording because the wrong version is the intuitive one.
+The symptom was a start/stop loop with the position pinned at the resume point,
+and it was attributed to the server: seeking supposedly asked for a segment
+Jellyfin had not written yet. Probing the server directly disproved that. Every
+seek shape returns HTTP 200 — cold jump to a segment five minutes in, a seek
+while a transcode is already running, a seek backwards, against both a remux
+and a genuine re-encode. Jellyfin starts ffmpeg at the requested offset on
+demand, in well under a second. **The server was never the problem**; the
+client was writing `currentTime` at `readyState 1`, before Shaka had settled,
+which threw away the buffer it had just filled.
+
+Two things remain true and still constrain the design:
+
+- **`startTimeTicks` must never go on the playlist URL.** Jellyfin does not
+  shift the playlist to the offset — it returns the same VOD playlist numbered
+  from segment 0 either way — but it *does* copy the parameter into every
+  segment URL it generates, and then rejects its own request:
+  `System.ArgumentException: StartTimeTicks is not allowed` on
   `/hls1/main/-1.mp4`. Playback never receives an init segment.
+- **Sending `StartTimeTicks` in the `PlaybackInfo` body does nothing useful.**
+  The server does not bake it into the `TranscodingUrl` it returns. This was
+  the fix this project expected to need, and it is not one.
 
-Direct play keeps its client-side seek, since a static file has a whole
-timeline. Resume for the HLS path needs revisiting — the likely answer is to
-send `StartTimeTicks` in the `PlaybackInfo` request and use the
-`TranscodingUrl` the server builds from it, rather than constructing the
-playlist URL here.
+Direct play keeps its client-side seek: it runs on the static player rather
+than Shaka, and a static file has a whole timeline to seek within.
+
+### Series, seasons and episodes
+
+A series is the one library item with nothing to play, so `LibraryScreen`
+routes `Type === 'Series'` to `JellyfinSeriesScreen` instead of the details
+screen — otherwise it would offer a Play button with no stream behind it.
+
+That screen lists seasons, then the episodes of the selected one, and opens on
+the first season so a device with no way to send input still exercises the
+episode call. Choosing an episode hands it to `JellyfinDetailsScreen`
+unchanged: an episode is an ordinary playable item, so it inherits the resume
+point, the `PlaybackInfo` round trip and the error handling that already exist
+there.
+
+Seasons and episodes come from `/Shows/{id}/Seasons` and
+`/Shows/{id}/Episodes` rather than `/Items?parentId=`. The Shows endpoints
+return them already ordered and honour the user's "display missing or unaired
+episodes" settings, which `/Items` does not.
+
+Verified against Jellyfin 10.11.11: both endpoints return every field these
+screens read — `Type`, `ParentIndexNumber`, `IndexNumber`, `SeriesName` and
+`RunTimeTicks` — and an episode's `PlaybackInfo` behaves exactly like a film's.
+
+### Subtitles
+
+External text subtitles are handed to the player as separate tracks.
+`resolvePlaybackTarget` turns every subtitle stream with
+`DeliveryMethod: 'External'` into a `TitleData.textTrack` entry, and the
+sample's `VideoHandler.loadSubtitles` already adds those to the video element
+before load — so nothing in the player needed changing.
+
+Only `External` tracks qualify. `Embed` needs the container, and `Encode`
+means burning the subtitle into the picture, which costs a full video
+transcode; the DeviceProfile is shaped so the server is never tempted to offer
+one.
+
+**The DeviceProfile claims WebVTT and nothing else, and that is the whole
+trick.** A format listed in `SubtitleProfiles` is a promise that the client can
+parse it. Claiming `srt`/`subrip` makes Jellyfin hand back the raw SRT file —
+`Stream.subrip` — which the player does not parse. Claiming `vtt` alone makes
+the server convert on the way out, and the same subtitle arrives as
+`Stream.vtt` with `content-type: text/vtt`. Verified against 10.11.11 by
+requesting one subtitle both ways; nothing about the response shape tells you
+which happened, so the integration test fetches the track and looks for
+`WEBVTT`.
+
+The URL Jellyfin supplies already carries its own `ApiKey`, and it needs to:
+the player fetches subtitles through its own networking and never sees this
+client's `Authorization` header — the same reason media URLs carry `api_key`.
+
+Not yet verified on a device: turning captions on needs a keypress, and Vega
+has no input injection. The same applies to the series and search screens —
+both need a remote to drive, so their behaviour is covered by tests and by
+live checks against the server rather than by watching a stick.
+
+### Search
+
+`JellyfinSearchScreen` searches across every library, reached from the button
+in the library header. It looks for films, series and individual episodes, and
+each result carries enough context to tell similar hits apart — an episode
+shows its series and number, a series says it is one.
+
+Two decisions worth stating. **The search runs on submit, not per keystroke:**
+on a remote every character is several presses, so searching as you type fires
+a request per press and shows results for prefixes nobody meant to search for.
+And it deliberately sends **no `parentId`** — search means the whole server,
+not whichever library happened to be open.
+
+It is a screen of its own rather than a field on the library grid because the
+sample's `SearchInput` takes focus on mount, which is right for a screen that
+exists to be typed into and wrong for one where the grid should be focused.
+
+A live test pins the behaviour that would otherwise fail silently: a
+`searchTerm` the server ignored would look like a working search that always
+returns the entire library, so one test searches for a term that matches
+nothing and asserts on an empty result.
 
 ### Playback reporting
 

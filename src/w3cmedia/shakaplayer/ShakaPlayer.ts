@@ -457,7 +457,12 @@ export class ShakaPlayer implements PlayerInterface {
     console.log('shakaplayer: load() OUT');
   }
   private async internalLoad(content: any) {
-    await this.player.load(content.uri);
+    // Shaka's second load() argument is the start time. Passing a resume
+    // point here rather than writing mediaElement.currentTime afterwards is
+    // what makes resume work against a Jellyfin HLS stream: Shaka picks the
+    // starting segment itself, so playback opens at the resume point instead
+    // of opening at zero and then seeking out of the buffer it just filled.
+    await this.player.load(content.uri, content.startTimeSeconds);
     console.log('shakaplayer: setTextTrackVisibility');
     this.player.setTextTrackVisibility(true);
     console.log('shakaplayer: loaded');

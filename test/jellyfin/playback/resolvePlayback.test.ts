@@ -6,6 +6,7 @@ import { JellyfinClient } from '../../../src/jellyfin/JellyfinClient';
 import {
   NoPlayableSourceError,
   resolvePlaybackTarget,
+  subtitleLabel,
 } from '../../../src/jellyfin/playback/resolvePlayback';
 
 const makeClient = () => {
@@ -267,29 +268,170 @@ describe('transcode reasons hidden in the TranscodingUrl', () => {
   });
 });
 
-describe('resume against a server-generated HLS playlist', () => {
-  const withResume = { ...item, UserData: { PlaybackPositionTicks: 900_000_000 } };
+describe('subtitles', () => {
+  const withSubtitles = (streams: unknown[]) => ({
+    ...directPlayResponse,
+    MediaSources: [
+      {
+        ...directPlayResponse.MediaSources![0],
+        MediaStreams: [
+          ...(directPlayResponse.MediaSources![0].MediaStreams ?? []),
+          ...streams,
+        ],
+      },
+    ],
+  });
 
-  it('does not ask the player to seek into a playlist the server builds on demand', async () => {
-    // Two approaches were tried on device and both fail. Seeking asks for a
-    // segment the server has not written — it logs "cannot serve ... no
-    // transcode is running", restarts ffmpeg, and the fetches in flight fail.
-    // Passing startTimeTicks on the playlist URL is worse: Jellyfin copies the
-    // query into its own segment URLs and then rejects them with
-    // "StartTimeTicks is not allowed", so playback never gets an init segment.
+  const external = {
+    Type: 'Subtitle',
+    Index: 0,
+    Codec: 'subrip',
+    Language: 'eng',
+    DisplayTitle: 'English - SUBRIP - External',
+    IsTextSubtitleStream: true,
+    DeliveryMethod: 'External',
+    DeliveryUrl: '/Videos/item-1/item-1/Subtitles/0/0/Stream.vtt?ApiKey=key',
+  };
+
+  it('offers an external text track to the player', async () => {
+    const target = resolvePlaybackTarget(
+      makeClient(),
+      item,
+      withSubtitles([external]) as never,
+    );
+
+    expect(target.titleData.textTrack).toHaveLength(1);
+    expect(target.titleData.textTrack![0]).toEqual({
+      label: 'English',
+      language: 'eng',
+      uri: 'http://jellyfin.local:8096/Videos/item-1/item-1/Subtitles/0/0/Stream.vtt?ApiKey=key',
+      mimeType: 'text/vtt',
+    });
+  });
+
+  it('keeps the ApiKey the server put on the URL', async () => {
+    // The player fetches subtitles through its own networking and never sees
+    // this client's Authorization header.
+    const target = resolvePlaybackTarget(
+      makeClient(),
+      item,
+      withSubtitles([external]) as never,
+    );
+
+    expect(target.titleData.textTrack![0].uri).toContain('ApiKey=key');
+  });
+
+  it('ignores a track the server would have to burn into the picture', async () => {
+    // Encode means a full video transcode; the DeviceProfile is shaped to
+    // avoid ever being offered one.
+    const target = resolvePlaybackTarget(
+      makeClient(),
+      item,
+      withSubtitles([
+        { ...external, DeliveryMethod: 'Encode', DeliveryUrl: null },
+      ]) as never,
+    );
+
+    expect(target.titleData.textTrack).toEqual([]);
+  });
+
+  it('ignores an embedded track, which has no URL to fetch', async () => {
+    const target = resolvePlaybackTarget(
+      makeClient(),
+      item,
+      withSubtitles([
+        { ...external, DeliveryMethod: 'Embed', DeliveryUrl: null },
+      ]) as never,
+    );
+
+    expect(target.titleData.textTrack).toEqual([]);
+  });
+
+  it('offers every external track, not just the first', async () => {
+    const target = resolvePlaybackTarget(
+      makeClient(),
+      item,
+      withSubtitles([
+        external,
+        {
+          ...external,
+          Index: 1,
+          Language: 'fra',
+          DisplayTitle: 'French - SUBRIP - External',
+          DeliveryUrl: '/Videos/item-1/item-1/Subtitles/1/0/Stream.vtt',
+        },
+      ]) as never,
+    );
+
+    expect(target.titleData.textTrack!.map((track) => track.label)).toEqual([
+      'English',
+      'French',
+    ]);
+  });
+
+  it('has no tracks when the title has no subtitles', async () => {
+    const target = resolvePlaybackTarget(makeClient(), item, directPlayResponse);
+
+    expect(target.titleData.textTrack).toEqual([]);
+  });
+});
+
+describe('subtitleLabel', () => {
+  it('takes the language from the front of DisplayTitle', () => {
+    expect(
+      subtitleLabel({ DisplayTitle: 'English - SUBRIP - External' }),
+    ).toBe('English');
+  });
+
+  it('falls back to the language code when there is no title', () => {
+    expect(subtitleLabel({ Language: 'eng' })).toBe('eng');
+  });
+
+  it('marks a forced track, which appears without being chosen', () => {
+    expect(
+      subtitleLabel({ DisplayTitle: 'English - SUBRIP', IsForced: true }),
+    ).toBe('English (forced)');
+  });
+
+  it('still names a track the server described not at all', () => {
+    expect(subtitleLabel({})).toBe('Subtitle');
+  });
+});
+
+describe('resume against an HLS stream', () => {
+  const withResume = {
+    ...item,
+    UserData: { PlaybackPositionTicks: 900_000_000 },
+  };
+
+  it('opens the stream at the resume point rather than seeking to it', async () => {
     const target = resolvePlaybackTarget(
       makeClient(),
       withResume,
       directPlayResponse,
     );
 
-    expect(target.titleData.uri).not.toContain('startTimeTicks');
-    expect(target.startPositionTicks).toBe(0);
-    expect(target.startAppliedServerSide).toBe(false);
-    expect(target.positionOffsetTicks).toBe(0);
+    // 900,000,000 ticks is 90 seconds. Shaka receives this at load().
+    expect(target.titleData.startTimeSeconds).toBe(90);
+    expect(target.startAppliedAtLoad).toBe(true);
+    expect(target.startPositionTicks).toBe(900_000_000);
   });
 
-  it('still seeks for direct play, where the file has a whole timeline', async () => {
+  it('never puts startTimeTicks on the playlist URL', async () => {
+    // Jellyfin returns the same playlist either way — segment 0 onwards,
+    // covering the whole title — but copies the parameter into every segment
+    // URL it generates and then rejects its own request with
+    // "StartTimeTicks is not allowed" on /hls1/main/-1.mp4.
+    const target = resolvePlaybackTarget(
+      makeClient(),
+      withResume,
+      directPlayResponse,
+    );
+
+    expect(target.titleData.uri.toLowerCase()).not.toContain('starttimeticks');
+  });
+
+  it('leaves direct play to seek, since the static player is not Shaka', async () => {
     const target = resolvePlaybackTarget(
       makeClient(),
       withResume,
@@ -297,7 +439,8 @@ describe('resume against a server-generated HLS playlist', () => {
       { allowDirectPlay: true },
     );
 
+    expect(target.startAppliedAtLoad).toBe(false);
+    expect(target.titleData.startTimeSeconds).toBeUndefined();
     expect(target.startPositionTicks).toBe(900_000_000);
-    expect(target.positionOffsetTicks).toBe(0);
   });
 });

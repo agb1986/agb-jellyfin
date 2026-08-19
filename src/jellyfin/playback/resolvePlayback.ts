@@ -1,9 +1,10 @@
 import type {
   BaseItemDto,
   MediaSourceInfo,
+  MediaStream,
   PlaybackInfoResponse,
 } from '@jellyfin/sdk/lib/generated-client/models';
-import { TitleData } from '../../types/TitleData';
+import { TextTrack, TitleData } from '../../types/TitleData';
 import { JellyfinClient, ticksToSeconds } from '../JellyfinClient';
 import { toShakaAudioCodec, toShakaVideoCodec } from './codecs';
 
@@ -35,22 +36,16 @@ export interface PlaybackTarget {
   /** Resume position, if the server has one for this user. */
   startPositionTicks: number;
   /**
-   * True when the resume point is baked into the stream, so the player must
-   * NOT seek — a server-side HLS playlist built with startTimeTicks begins at
-   * the resume point, and its own timeline starts at zero.
+   * True when the start position is applied by the player as it loads, which
+   * is the case for every HLS stream — `TitleData.startTimeSeconds` is handed
+   * to Shaka's `load()` and it opens at the resume point.
    *
-   * Seeking into it instead asks for a segment index the server has not
-   * produced: Jellyfin logs "cannot serve ... no transcode is running",
-   * restarts ffmpeg at the new offset, and the fetches in flight fail
-   * meanwhile — which reads as playback ending the moment it starts.
+   * The reporting hook keys off this to know it must not also write
+   * `currentTime`. Seeking a stream that already started in the right place
+   * is what produced the start/stop loop: the write landed at `readyState 1`,
+   * before Shaka had settled, and dropped the buffer it had just filled.
    */
-  startAppliedServerSide: boolean;
-  /**
-   * Ticks to add to the element's currentTime before reporting it. Non-zero
-   * exactly when the offset is server-side, since the stream's clock restarts
-   * at the resume point.
-   */
-  positionOffsetTicks: number;
+  startAppliedAtLoad: boolean;
 }
 
 /**
@@ -111,6 +106,53 @@ const streamOfType = (source: MediaSourceInfo, type: 'Video' | 'Audio') =>
   source.MediaStreams?.find((stream) => stream.Type === type);
 
 /**
+ * A readable name for a subtitle track.
+ *
+ * Jellyfin's `DisplayTitle` reads "English - SUBRIP - External", which says
+ * more about the plumbing than the viewer needs. The part before the first
+ * separator is the language as Jellyfin resolved it, which is the useful half;
+ * `Language` is a three-letter code and only a fallback.
+ */
+export const subtitleLabel = (stream: MediaStream): string => {
+  const fromTitle = stream.DisplayTitle?.split(' - ')[0]?.trim();
+  const base = fromTitle || stream.Language || 'Subtitle';
+  return stream.IsForced === true ? `${base} (forced)` : base;
+};
+
+/**
+ * External text subtitle tracks, as `TitleData.textTrack` entries.
+ *
+ * Only `DeliveryMethod: 'External'` tracks qualify: those are the ones the
+ * server will serve as a separate file the player can fetch. `Embed` needs the
+ * container, and `Encode` means burning the subtitle into the video — which
+ * costs a full transcode and is what the DeviceProfile is shaped to avoid.
+ *
+ * The URL Jellyfin supplies already carries its own `ApiKey`, and it must: the
+ * player fetches subtitles through its own networking and never sees this
+ * client's Authorization header — the same reason media URLs carry `api_key`.
+ */
+export const subtitleTracks = (
+  client: JellyfinClient,
+  source: MediaSourceInfo,
+): TextTrack[] =>
+  (source.MediaStreams ?? [])
+    .filter(
+      (stream) =>
+        stream.Type === 'Subtitle' &&
+        stream.DeliveryMethod === 'External' &&
+        typeof stream.DeliveryUrl === 'string' &&
+        stream.DeliveryUrl.length > 0,
+    )
+    .map((stream) => ({
+      label: subtitleLabel(stream),
+      language: stream.Language ?? '',
+      uri: `${client.http.serverUrl}${stream.DeliveryUrl}`,
+      // Always WebVTT: the DeviceProfile claims vtt and nothing else, so the
+      // server converts anything it holds on the way out.
+      mimeType: 'text/vtt' as const,
+    }));
+
+/**
  * Chooses between what the server offers.
  *
  * Direct play is preferred and needs no server work at all, but only for
@@ -158,7 +200,7 @@ export const resolvePlaybackTarget = (
   let uri: string;
   let format: TitleData['format'];
   let playMethod: PlayMethod;
-  let startAppliedServerSide = false;
+  let startAppliedAtLoad = false;
 
   if (canDirectPlay) {
     uri = client.getStreamUrl(
@@ -178,6 +220,7 @@ export const resolvePlaybackTarget = (
     // the parameters the server picked.
     uri = `${client.http.serverUrl}${source.TranscodingUrl}`;
     format = 'HLS';
+    startAppliedAtLoad = true;
     playMethod =
       source.SupportsDirectStream === true ? 'DirectStream' : 'Transcode';
   } else {
@@ -191,21 +234,14 @@ export const resolvePlaybackTarget = (
       videoCodec: 'h264',
       audioCodec: 'aac',
     });
-    // Resume is deliberately not applied here yet. Two approaches have been
-    // tried on device and both fail:
-    //
-    //  - Seeking client-side asks for a segment the server has not written.
-    //    Jellyfin logs "cannot serve ... no transcode is running", restarts
-    //    ffmpeg at the new offset, and the fetches in flight fail meanwhile.
-    //  - Passing startTimeTicks on the playlist URL is worse: Jellyfin copies
-    //    the query into the segment URLs it generates and then rejects its own
-    //    request with `System.ArgumentException: StartTimeTicks is not
-    //    allowed` on /hls1/main/-1.mp4, so playback never gets an init
-    //    segment.
-    //
-    // Playback from the start works, so that is what happens until resume is
-    // solved properly.
-    startAppliedServerSide = false;
+    // Note what is deliberately absent: startTimeTicks. Jellyfin does not
+    // shift a playlist to a start offset — it returns the same VOD playlist
+    // numbered from segment 0 either way — but it does copy the parameter into
+    // every segment URL it generates, and then rejects its own request with
+    // `System.ArgumentException: StartTimeTicks is not allowed` on
+    // /hls1/main/-1.mp4. The playlist already spans the whole title, so the
+    // resume point is reached by starting Shaka at it instead.
+    startAppliedAtLoad = true;
     format = 'HLS';
     playMethod =
       source.SupportsDirectStream === true ? 'DirectStream' : 'Transcode';
@@ -231,10 +267,14 @@ export const resolvePlaybackTarget = (
       : undefined,
     vcodec: toShakaVideoCodec(videoStream?.Codec),
     acodec: toShakaAudioCodec(audioStream?.Codec),
+    textTrack: subtitleTracks(client, source),
+    // Shaka opens here. Only meaningful for the HLS paths; the static player
+    // used for direct play ignores it and is seeked instead.
+    startTimeSeconds:
+      startAppliedAtLoad && resumeTicks > 0
+        ? ticksToSeconds(resumeTicks)
+        : undefined,
   };
-
-  // No resume for a generated HLS playlist yet — see above.
-  const seekTicks = canDirectPlay ? resumeTicks : 0;
 
   return {
     titleData,
@@ -242,8 +282,7 @@ export const resolvePlaybackTarget = (
     playSessionId: response.PlaySessionId ?? undefined,
     mediaSourceId: source.Id ?? undefined,
     transcodeReasons: normaliseReasons(source),
-    startPositionTicks: seekTicks,
-    startAppliedServerSide,
-    positionOffsetTicks: startAppliedServerSide ? resumeTicks : 0,
+    startPositionTicks: resumeTicks,
+    startAppliedAtLoad,
   };
 };

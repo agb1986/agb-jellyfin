@@ -170,12 +170,12 @@ const NoDescriptorHarness = () => {
   return <Text>sample content</Text>;
 };
 
-describe('when the stream itself starts at the resume point', () => {
-  it('does not seek, and reports the position within the title', async () => {
-    // The playlist counts from zero at the resume point, so seeking would jump
-    // an hour past it and the raw currentTime would under-report by the same
-    // amount.
-    const video = makeVideo({ currentTime: 12 });
+describe('when Shaka opened the stream at the resume point', () => {
+  it('does not seek, and reports currentTime unchanged', async () => {
+    // Shaka is handed the resume point at load, so its timeline still spans
+    // the whole title: currentTime is already the position within the title,
+    // and writing to it here is what produced the start/stop loop.
+    const video = makeVideo({ currentTime: 912 });
     const fetchImpl = jest.fn().mockResolvedValue(
       ({
         ok: true,
@@ -206,13 +206,12 @@ describe('when the stream itself starts at the resume point', () => {
       ).toBeGreaterThan(0),
     );
 
-    expect(video.current?.currentTime).toBe(12);
+    expect(video.current?.currentTime).toBe(912);
 
     const startCall = fetchImpl.mock.calls.find(([url]: [string]) =>
       url.endsWith('/Sessions/Playing'),
     );
-    // 90s of offset plus 12s played.
-    expect(JSON.parse(startCall![1].body).PositionTicks).toBe(1_020_000_000);
+    expect(JSON.parse(startCall![1].body).PositionTicks).toBe(9_120_000_000);
 
     unmount();
   });
@@ -225,8 +224,8 @@ const OffsetHarness = ({
 }) => {
   useJellyfinPlaybackReporting(videoRef, {
     descriptor,
+    // Zero because the stream already opened at the resume point.
     startPositionTicks: 0,
-    positionOffsetTicks: 900_000_000,
     pollIntervalMs: 5,
   });
   return <Text>player</Text>;

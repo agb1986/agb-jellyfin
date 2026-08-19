@@ -62,13 +62,20 @@ describe('buildDeviceProfile', () => {
     ).toBe(20_000_000);
   });
 
-  it('offers only text subtitle formats', () => {
-    // Image subtitles (PGS, DVDSUB) cannot be handed to Shaka as a track, so
-    // Jellyfin burns them in — which forces a full video transcode.
+  it('claims WebVTT and nothing else', () => {
+    // A format listed here promises the client can parse it. Claiming srt or
+    // subrip makes Jellyfin hand over the raw SRT file, which the player does
+    // not parse; claiming vtt alone makes the server convert on the way out.
+    // Verified against 10.11.11 — the same subtitle comes back as
+    // Stream.subrip or Stream.vtt depending purely on this list.
     const formats = buildDeviceProfile().SubtitleProfiles?.map((p) => p.Format);
-    expect(formats).toEqual(
-      expect.arrayContaining(['vtt', 'srt', 'subrip', 'webvtt']),
-    );
+    expect(formats).toEqual(['vtt', 'vtt']);
+  });
+
+  it('offers no image subtitle format', () => {
+    // Image subtitles (PGS, DVDSUB) cannot be handed to the player as a track,
+    // so Jellyfin burns them in — which forces a full video transcode.
+    const formats = buildDeviceProfile().SubtitleProfiles?.map((p) => p.Format);
     expect(formats).not.toContain('pgssub');
     expect(formats).not.toContain('dvdsub');
     expect(formats).not.toContain('ass');

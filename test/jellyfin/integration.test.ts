@@ -286,6 +286,130 @@ describeLive('against a live Jellyfin server', () => {
     expect(await playlist.text()).toContain('#EXTM3U');
   });
 
+  it('offers subtitles the server serves as WebVTT', async () => {
+    // The DeviceProfile claims vtt and nothing else, which makes Jellyfin
+    // convert on the way out. Fetching the track is the only way to prove
+    // that: a profile claiming srt gets the raw SRT file back from the same
+    // endpoint, and nothing about the response shape says which happened.
+    const session = await JellyfinSession.create({
+      store: new MemoryKeyValueStore(),
+      clientInfo,
+      deviceName: 'integration',
+      serverUrl,
+    });
+    session.client.setAccessToken(
+      await signInWithPassword(serverUrl as string),
+    );
+    await session.client.getCurrentUser();
+
+    const views = await session.client.getUserViews();
+    const items = await session.client.getItems({
+      parentId: views.Items?.[0]?.Id,
+      recursive: true,
+      includeItemTypes: ['Movie'],
+      limit: 20,
+    });
+
+    // Find a title that actually has an external subtitle; a library without
+    // one cannot prove anything, so say so rather than passing vacuously.
+    let tracks: NonNullable<
+      ReturnType<typeof resolvePlaybackTarget>['titleData']['textTrack']
+    > = [];
+    for (const candidate of items.Items ?? []) {
+      const playback = await session.client.getPlaybackInfo(
+        candidate.Id as string,
+      );
+      const target = resolvePlaybackTarget(session.client, candidate, playback);
+      if ((target.titleData.textTrack ?? []).length > 0) {
+        tracks = target.titleData.textTrack ?? [];
+        process.stdout.write(
+          `[integration] subtitles on ${target.titleData.title}: ` +
+            `${tracks.map((track) => track.label).join(', ')}\n`,
+        );
+        break;
+      }
+    }
+
+    if (tracks.length === 0) {
+      process.stdout.write(
+        '[integration] no external subtitles in this library — nothing proved\n',
+      );
+      return;
+    }
+
+    expect(tracks[0].mimeType).toBe('text/vtt');
+    expect(tracks[0].uri).toContain('Stream.vtt');
+
+    const response = await fetch(tracks[0].uri);
+    expect(response.status).toBe(200);
+    expect(response.headers.get('content-type')).toContain('text/vtt');
+    expect(await response.text()).toContain('WEBVTT');
+  });
+
+  it('finds items across every library by search term', async () => {
+    const session = await JellyfinSession.create({
+      store: new MemoryKeyValueStore(),
+      clientInfo,
+      deviceName: 'integration',
+      serverUrl,
+    });
+    session.client.setAccessToken(
+      await signInWithPassword(serverUrl as string),
+    );
+    await session.client.getCurrentUser();
+
+    // Take a real title's first word and search for it, so the term is known
+    // to exist without hard-coding anything about the library.
+    const views = await session.client.getUserViews();
+    const items = await session.client.getItems({
+      parentId: views.Items?.[0]?.Id,
+      recursive: true,
+      includeItemTypes: ['Movie'],
+      limit: 1,
+    });
+    const known = items.Items?.[0];
+    const word = (known?.Name ?? '').split(' ')[0];
+    expect(word.length).toBeGreaterThan(0);
+
+    const found = await session.client.getItems({
+      searchTerm: word,
+      recursive: true,
+      includeItemTypes: ['Movie', 'Series', 'Episode'],
+      limit: 60,
+    });
+
+    process.stdout.write(
+      `[integration] search "${word}" returned ${found.Items?.length ?? 0}: ` +
+        `${(found.Items ?? []).map((i) => i.Name).join(', ')}\n`,
+    );
+
+    expect(found.Items?.some((i) => i.Id === known?.Id)).toBe(true);
+  });
+
+  it('returns nothing, rather than everything, for a term that matches no title', async () => {
+    // Worth pinning: an ignored searchTerm would look like a working search
+    // that always returns the whole library.
+    const session = await JellyfinSession.create({
+      store: new MemoryKeyValueStore(),
+      clientInfo,
+      deviceName: 'integration',
+      serverUrl,
+    });
+    session.client.setAccessToken(
+      await signInWithPassword(serverUrl as string),
+    );
+    await session.client.getCurrentUser();
+
+    const found = await session.client.getItems({
+      searchTerm: 'zzzznotathingzzzz',
+      recursive: true,
+      includeItemTypes: ['Movie', 'Series', 'Episode'],
+      limit: 60,
+    });
+
+    expect(found.Items ?? []).toHaveLength(0);
+  });
+
   it('turns a reported stop into a resume point the server hands back', async () => {
     // The whole reason reporting is server-side: this is what makes a film
     // resume on a different stick, and what fills Continue Watching.

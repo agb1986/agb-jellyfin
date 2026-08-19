@@ -19,6 +19,7 @@ export {
   JellyfinTimeoutError,
 } from './errors';
 export {
+  type EpisodesQuery,
   JellyfinClient,
   type ItemsQuery,
   type JellyfinClientOptions,

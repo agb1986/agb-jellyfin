@@ -99,6 +99,50 @@ describe('JellyfinClient library', () => {
     );
   });
 
+  it('asks /Shows for seasons, which orders them and honours display settings', async () => {
+    const fetchImpl = jest.fn().mockResolvedValue(jsonResponse({ Items: [] }));
+    const client = makeClient(fetchImpl);
+    client.setAccessToken('tok', 'user-1');
+
+    await client.getSeasons('series-1');
+
+    expect(fetchImpl.mock.calls[0][0]).toBe(
+      'http://jellyfin.local:8096/Shows/series-1/Seasons?userId=user-1',
+    );
+  });
+
+  it('narrows episodes to one season when asked', async () => {
+    const fetchImpl = jest.fn().mockResolvedValue(jsonResponse({ Items: [] }));
+    const client = makeClient(fetchImpl);
+    client.setAccessToken('tok', 'user-1');
+
+    await client.getEpisodes('series-1', { seasonId: 'season-2' });
+
+    const url = fetchImpl.mock.calls[0][0];
+    expect(url).toContain('/Shows/series-1/Episodes');
+    expect(url).toContain('seasonId=season-2');
+  });
+
+  it('returns every episode of a series when no season is given', async () => {
+    const fetchImpl = jest.fn().mockResolvedValue(jsonResponse({ Items: [] }));
+    const client = makeClient(fetchImpl);
+    client.setAccessToken('tok', 'user-1');
+
+    await client.getEpisodes('series-1');
+
+    expect(fetchImpl.mock.calls[0][0]).not.toContain('seasonId');
+  });
+
+  it('escapes a series id rather than pasting it into the path', async () => {
+    const fetchImpl = jest.fn().mockResolvedValue(jsonResponse({ Items: [] }));
+    const client = makeClient(fetchImpl);
+    client.setAccessToken('tok', 'user-1');
+
+    await client.getSeasons('a/b');
+
+    expect(fetchImpl.mock.calls[0][0]).toContain('/Shows/a%2Fb/Seasons');
+  });
+
   it('joins list query parameters with commas, as the API expects', async () => {
     const fetchImpl = jest.fn().mockResolvedValue(jsonResponse({ Items: [] }));
     const client = makeClient(fetchImpl);

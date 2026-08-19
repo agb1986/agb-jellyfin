@@ -14,7 +14,7 @@ export type MimeType =
 
 export type VideoFormat = 'MPD' | 'HLS' | 'MP4' | 'DASH';
 
-interface TextTrack {
+export interface TextTrack {
   label: string;
   language: string;
   uri: string;
@@ -39,4 +39,11 @@ export interface TitleData extends MediaItem {
   rentAmount: string;
   bifUrl?: string;
   thumbnailUrl?: string;
+  /**
+   * Where playback should begin, in seconds. Handed to Shaka at load time
+   * rather than seeked to afterwards: Shaka applies it while buffering the
+   * first segments, so playback starts at the resume point instead of
+   * starting at zero and jumping.
+   */
+  startTimeSeconds?: number;
 }
