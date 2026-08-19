@@ -14,7 +14,7 @@ export type MimeType =
 
 export type VideoFormat = 'MPD' | 'HLS' | 'MP4' | 'DASH';
 
-interface TextTrack {
+export interface TextTrack {
   label: string;
   language: string;
   uri: string;

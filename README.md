@@ -307,6 +307,36 @@ Verified against Jellyfin 10.11.11: both endpoints return every field these
 screens read — `Type`, `ParentIndexNumber`, `IndexNumber`, `SeriesName` and
 `RunTimeTicks` — and an episode's `PlaybackInfo` behaves exactly like a film's.
 
+### Subtitles
+
+External text subtitles are handed to the player as separate tracks.
+`resolvePlaybackTarget` turns every subtitle stream with
+`DeliveryMethod: 'External'` into a `TitleData.textTrack` entry, and the
+sample's `VideoHandler.loadSubtitles` already adds those to the video element
+before load — so nothing in the player needed changing.
+
+Only `External` tracks qualify. `Embed` needs the container, and `Encode`
+means burning the subtitle into the picture, which costs a full video
+transcode; the DeviceProfile is shaped so the server is never tempted to offer
+one.
+
+**The DeviceProfile claims WebVTT and nothing else, and that is the whole
+trick.** A format listed in `SubtitleProfiles` is a promise that the client can
+parse it. Claiming `srt`/`subrip` makes Jellyfin hand back the raw SRT file —
+`Stream.subrip` — which the player does not parse. Claiming `vtt` alone makes
+the server convert on the way out, and the same subtitle arrives as
+`Stream.vtt` with `content-type: text/vtt`. Verified against 10.11.11 by
+requesting one subtitle both ways; nothing about the response shape tells you
+which happened, so the integration test fetches the track and looks for
+`WEBVTT`.
+
+The URL Jellyfin supplies already carries its own `ApiKey`, and it needs to:
+the player fetches subtitles through its own networking and never sees this
+client's `Authorization` header — the same reason media URLs carry `api_key`.
+
+Not yet verified on a device: turning captions on needs a keypress, and Vega
+has no input injection.
+
 ### Playback reporting
 
 `/Sessions/Playing`, `/Progress` and `/Stopped` are what make resume, watched

@@ -121,15 +121,20 @@ export const buildDeviceProfile = (
     },
   ];
 
-  // Text subtitles are handed to Shaka as a separate track. Image-based
+  // Text subtitles are handed to the player as a separate track. Image-based
   // formats (PGS, DVDSUB) cannot be, so Jellyfin burns them into the picture —
   // which forces a full video transcode. They are omitted here so the server
   // knows not to try; picking a text track, or none, stays cheap.
+  //
+  // **Only WebVTT is claimed, and that is deliberate.** A format listed here
+  // is a promise that the client can parse it, so listing srt/subrip makes
+  // Jellyfin hand over the raw SRT file — `Stream.subrip`, which the player
+  // does not parse. Claiming vtt alone makes the server convert on the way
+  // out: the same stream arrives as `Stream.vtt` with `content-type:
+  // text/vtt`. Verified against 10.11.11 by asking for the same subtitle both
+  // ways.
   const subtitleProfiles: SubtitleProfile[] = [
     { Format: 'vtt', Method: 'External' },
-    { Format: 'webvtt', Method: 'External' },
-    { Format: 'srt', Method: 'External' },
-    { Format: 'subrip', Method: 'External' },
     { Format: 'vtt', Method: 'Hls' },
   ];
 

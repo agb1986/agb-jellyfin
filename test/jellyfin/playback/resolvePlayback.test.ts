@@ -6,6 +6,7 @@ import { JellyfinClient } from '../../../src/jellyfin/JellyfinClient';
 import {
   NoPlayableSourceError,
   resolvePlaybackTarget,
+  subtitleLabel,
 } from '../../../src/jellyfin/playback/resolvePlayback';
 
 const makeClient = () => {
@@ -264,6 +265,136 @@ describe('transcode reasons hidden in the TranscodingUrl', () => {
       resolvePlaybackTarget(makeClient(), item, remuxResponse())
         .transcodeReasons,
     ).toEqual([]);
+  });
+});
+
+describe('subtitles', () => {
+  const withSubtitles = (streams: unknown[]) => ({
+    ...directPlayResponse,
+    MediaSources: [
+      {
+        ...directPlayResponse.MediaSources![0],
+        MediaStreams: [
+          ...(directPlayResponse.MediaSources![0].MediaStreams ?? []),
+          ...streams,
+        ],
+      },
+    ],
+  });
+
+  const external = {
+    Type: 'Subtitle',
+    Index: 0,
+    Codec: 'subrip',
+    Language: 'eng',
+    DisplayTitle: 'English - SUBRIP - External',
+    IsTextSubtitleStream: true,
+    DeliveryMethod: 'External',
+    DeliveryUrl: '/Videos/item-1/item-1/Subtitles/0/0/Stream.vtt?ApiKey=key',
+  };
+
+  it('offers an external text track to the player', async () => {
+    const target = resolvePlaybackTarget(
+      makeClient(),
+      item,
+      withSubtitles([external]) as never,
+    );
+
+    expect(target.titleData.textTrack).toHaveLength(1);
+    expect(target.titleData.textTrack![0]).toEqual({
+      label: 'English',
+      language: 'eng',
+      uri: 'http://jellyfin.local:8096/Videos/item-1/item-1/Subtitles/0/0/Stream.vtt?ApiKey=key',
+      mimeType: 'text/vtt',
+    });
+  });
+
+  it('keeps the ApiKey the server put on the URL', async () => {
+    // The player fetches subtitles through its own networking and never sees
+    // this client's Authorization header.
+    const target = resolvePlaybackTarget(
+      makeClient(),
+      item,
+      withSubtitles([external]) as never,
+    );
+
+    expect(target.titleData.textTrack![0].uri).toContain('ApiKey=key');
+  });
+
+  it('ignores a track the server would have to burn into the picture', async () => {
+    // Encode means a full video transcode; the DeviceProfile is shaped to
+    // avoid ever being offered one.
+    const target = resolvePlaybackTarget(
+      makeClient(),
+      item,
+      withSubtitles([
+        { ...external, DeliveryMethod: 'Encode', DeliveryUrl: null },
+      ]) as never,
+    );
+
+    expect(target.titleData.textTrack).toEqual([]);
+  });
+
+  it('ignores an embedded track, which has no URL to fetch', async () => {
+    const target = resolvePlaybackTarget(
+      makeClient(),
+      item,
+      withSubtitles([
+        { ...external, DeliveryMethod: 'Embed', DeliveryUrl: null },
+      ]) as never,
+    );
+
+    expect(target.titleData.textTrack).toEqual([]);
+  });
+
+  it('offers every external track, not just the first', async () => {
+    const target = resolvePlaybackTarget(
+      makeClient(),
+      item,
+      withSubtitles([
+        external,
+        {
+          ...external,
+          Index: 1,
+          Language: 'fra',
+          DisplayTitle: 'French - SUBRIP - External',
+          DeliveryUrl: '/Videos/item-1/item-1/Subtitles/1/0/Stream.vtt',
+        },
+      ]) as never,
+    );
+
+    expect(target.titleData.textTrack!.map((track) => track.label)).toEqual([
+      'English',
+      'French',
+    ]);
+  });
+
+  it('has no tracks when the title has no subtitles', async () => {
+    const target = resolvePlaybackTarget(makeClient(), item, directPlayResponse);
+
+    expect(target.titleData.textTrack).toEqual([]);
+  });
+});
+
+describe('subtitleLabel', () => {
+  it('takes the language from the front of DisplayTitle', () => {
+    expect(
+      subtitleLabel({ DisplayTitle: 'English - SUBRIP - External' }),
+    ).toBe('English');
+  });
+
+  it('falls back to the language code when there is no title', () => {
+    expect(subtitleLabel({ Language: 'eng' })).toBe('eng');
+  });
+
+  it('marks a forced track, which appears without being chosen', () => {
+    expect(
+      subtitleLabel({ DisplayTitle: 'English - SUBRIP', IsForced: true }),
+    ).toBe('English (forced)');
+  });
+
+  it('still names a track the server described not at all', () => {
+    expect(subtitleLabel({})).toBe('Subtitle');
   });
 });
 

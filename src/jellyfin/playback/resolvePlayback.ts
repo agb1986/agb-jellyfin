@@ -1,9 +1,10 @@
 import type {
   BaseItemDto,
   MediaSourceInfo,
+  MediaStream,
   PlaybackInfoResponse,
 } from '@jellyfin/sdk/lib/generated-client/models';
-import { TitleData } from '../../types/TitleData';
+import { TextTrack, TitleData } from '../../types/TitleData';
 import { JellyfinClient, ticksToSeconds } from '../JellyfinClient';
 import { toShakaAudioCodec, toShakaVideoCodec } from './codecs';
 
@@ -103,6 +104,53 @@ const normaliseReasons = (
 
 const streamOfType = (source: MediaSourceInfo, type: 'Video' | 'Audio') =>
   source.MediaStreams?.find((stream) => stream.Type === type);
+
+/**
+ * A readable name for a subtitle track.
+ *
+ * Jellyfin's `DisplayTitle` reads "English - SUBRIP - External", which says
+ * more about the plumbing than the viewer needs. The part before the first
+ * separator is the language as Jellyfin resolved it, which is the useful half;
+ * `Language` is a three-letter code and only a fallback.
+ */
+export const subtitleLabel = (stream: MediaStream): string => {
+  const fromTitle = stream.DisplayTitle?.split(' - ')[0]?.trim();
+  const base = fromTitle || stream.Language || 'Subtitle';
+  return stream.IsForced === true ? `${base} (forced)` : base;
+};
+
+/**
+ * External text subtitle tracks, as `TitleData.textTrack` entries.
+ *
+ * Only `DeliveryMethod: 'External'` tracks qualify: those are the ones the
+ * server will serve as a separate file the player can fetch. `Embed` needs the
+ * container, and `Encode` means burning the subtitle into the video — which
+ * costs a full transcode and is what the DeviceProfile is shaped to avoid.
+ *
+ * The URL Jellyfin supplies already carries its own `ApiKey`, and it must: the
+ * player fetches subtitles through its own networking and never sees this
+ * client's Authorization header — the same reason media URLs carry `api_key`.
+ */
+export const subtitleTracks = (
+  client: JellyfinClient,
+  source: MediaSourceInfo,
+): TextTrack[] =>
+  (source.MediaStreams ?? [])
+    .filter(
+      (stream) =>
+        stream.Type === 'Subtitle' &&
+        stream.DeliveryMethod === 'External' &&
+        typeof stream.DeliveryUrl === 'string' &&
+        stream.DeliveryUrl.length > 0,
+    )
+    .map((stream) => ({
+      label: subtitleLabel(stream),
+      language: stream.Language ?? '',
+      uri: `${client.http.serverUrl}${stream.DeliveryUrl}`,
+      // Always WebVTT: the DeviceProfile claims vtt and nothing else, so the
+      // server converts anything it holds on the way out.
+      mimeType: 'text/vtt' as const,
+    }));
 
 /**
  * Chooses between what the server offers.
@@ -219,6 +267,7 @@ export const resolvePlaybackTarget = (
       : undefined,
     vcodec: toShakaVideoCodec(videoStream?.Codec),
     acodec: toShakaAudioCodec(audioStream?.Codec),
+    textTrack: subtitleTracks(client, source),
     // Shaka opens here. Only meaningful for the HLS paths; the static player
     // used for direct play ignores it and is seeked instead.
     startTimeSeconds:
