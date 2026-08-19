@@ -285,6 +285,28 @@ Two things remain true and still constrain the design:
 Direct play keeps its client-side seek: it runs on the static player rather
 than Shaka, and a static file has a whole timeline to seek within.
 
+### Series, seasons and episodes
+
+A series is the one library item with nothing to play, so `LibraryScreen`
+routes `Type === 'Series'` to `JellyfinSeriesScreen` instead of the details
+screen — otherwise it would offer a Play button with no stream behind it.
+
+That screen lists seasons, then the episodes of the selected one, and opens on
+the first season so a device with no way to send input still exercises the
+episode call. Choosing an episode hands it to `JellyfinDetailsScreen`
+unchanged: an episode is an ordinary playable item, so it inherits the resume
+point, the `PlaybackInfo` round trip and the error handling that already exist
+there.
+
+Seasons and episodes come from `/Shows/{id}/Seasons` and
+`/Shows/{id}/Episodes` rather than `/Items?parentId=`. The Shows endpoints
+return them already ordered and honour the user's "display missing or unaired
+episodes" settings, which `/Items` does not.
+
+Verified against Jellyfin 10.11.11: both endpoints return every field these
+screens read — `Type`, `ParentIndexNumber`, `IndexNumber`, `SeriesName` and
+`RunTimeTicks` — and an episode's `PlaybackInfo` behaves exactly like a film's.
+
 ### Playback reporting
 
 `/Sessions/Playing`, `/Progress` and `/Stopped` are what make resume, watched

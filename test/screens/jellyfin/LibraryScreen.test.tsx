@@ -1,4 +1,9 @@
-import { render, screen, waitFor } from '@testing-library/react-native';
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from '@testing-library/react-native';
 import React from 'react';
 import { JellyfinProvider } from '../../../src/jellyfin/react/JellyfinProvider';
 import { CREDENTIALS_KEY } from '../../../src/jellyfin/storage/credentialStore';
@@ -67,6 +72,21 @@ const happyPath = () =>
       }),
     );
 
+/** A library holding one series rather than films. */
+const showsPath = () =>
+  jest
+    .fn()
+    .mockResolvedValueOnce(jsonResponse({ Id: 'user-1' }))
+    .mockResolvedValueOnce(
+      jsonResponse({ Items: [{ Id: 'lib-shows', Name: 'Shows' }] }),
+    )
+    .mockResolvedValueOnce(
+      jsonResponse({
+        Items: [{ Id: 'series-1', Name: 'The Expanse', Type: 'Series' }],
+      }),
+    )
+    .mockResolvedValue(jsonResponse({ Items: [] }));
+
 describe('LibraryScreen', () => {
   it('lists the libraries the user can see', async () => {
     await renderLibrary(happyPath());
@@ -120,6 +140,20 @@ describe('LibraryScreen', () => {
     await waitFor(() =>
       expect(screen.getByTestId('jellyfin-library-error')).toBeTruthy(),
     );
+  });
+
+  it('opens a series on its seasons, not on a play button with nothing behind it', async () => {
+    await renderLibrary(showsPath());
+
+    await waitFor(() =>
+      expect(screen.getByTestId('jellyfin-item-series-1')).toBeTruthy(),
+    );
+    fireEvent.press(screen.getByTestId('jellyfin-item-series-1'));
+
+    await waitFor(() =>
+      expect(screen.getByTestId('jellyfin-series-screen')).toBeTruthy(),
+    );
+    expect(screen.queryByTestId('jellyfin-details-screen')).toBeNull();
   });
 
   it('says a library is empty rather than looking broken', async () => {

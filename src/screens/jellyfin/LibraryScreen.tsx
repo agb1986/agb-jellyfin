@@ -14,6 +14,7 @@ import { useJellyfin } from '../../jellyfin/react/JellyfinProvider';
 import { COLORS } from '../../styles/Colors';
 import { scaleUxToDp } from '../../utils/pixelUtils';
 import JellyfinDetailsScreen from './JellyfinDetailsScreen';
+import JellyfinSeriesScreen from './JellyfinSeriesScreen';
 
 /**
  * The signed-in landing screen: the user's libraries, and the items in the
@@ -146,6 +147,18 @@ const LibraryScreen = ({ navigation }: LibraryScreenProps) => {
   );
 
   if (selectedItem) {
+    // A series has nothing to play — its episodes do. Sending it to the
+    // details screen would show a Play button with no stream behind it.
+    if (selectedItem.Type === 'Series') {
+      return (
+        <JellyfinSeriesScreen
+          series={selectedItem}
+          navigation={navigation}
+          onBack={() => setSelectedItem(null)}
+        />
+      );
+    }
+
     return (
       <JellyfinDetailsScreen
         item={selectedItem}

@@ -151,6 +151,44 @@ export class JellyfinClient {
     });
   }
 
+  /**
+   * A series' seasons, in broadcast order.
+   *
+   * `/Shows/{id}/Seasons` rather than `/Items?parentId=`: the Shows endpoints
+   * apply the user's "display missing/unaired" settings and return seasons
+   * already ordered, which /Items does not.
+   */
+  async getSeasons(seriesId: string): Promise<BaseItemDtoQueryResult> {
+    return this.http.request<BaseItemDtoQueryResult>(
+      `/Shows/${encodeURIComponent(seriesId)}/Seasons`,
+      { query: { userId: this.requireUserId() } },
+    );
+  }
+
+  /**
+   * Episodes of a series, optionally narrowed to one season.
+   *
+   * Without `seasonId` this returns every episode of the series in order,
+   * which is what a "play next" walk needs.
+   */
+  async getEpisodes(
+    seriesId: string,
+    query: EpisodesQuery = {},
+  ): Promise<BaseItemDtoQueryResult> {
+    return this.http.request<BaseItemDtoQueryResult>(
+      `/Shows/${encodeURIComponent(seriesId)}/Episodes`,
+      {
+        query: {
+          userId: this.requireUserId(),
+          seasonId: query.seasonId,
+          startIndex: query.startIndex,
+          limit: query.limit,
+          fields: query.fields?.join(','),
+        },
+      },
+    );
+  }
+
   async getItem(itemId: string): Promise<BaseItemDto> {
     return this.http.request<BaseItemDto>(`/Items/${encodeURIComponent(itemId)}`, {
       query: { userId: this.requireUserId() },
@@ -362,6 +400,14 @@ export interface ItemsQuery {
   limit?: number;
   fields?: string[];
   searchTerm?: string;
+}
+
+export interface EpisodesQuery {
+  /** Omit for every episode of the series, in order. */
+  seasonId?: string;
+  startIndex?: number;
+  limit?: number;
+  fields?: string[];
 }
 
 export interface PlaybackInfoOptions {
